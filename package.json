@@ -70,7 +70,7 @@
     "access": "public"
   },
   "dependencies": {
-    "commander": "^12.1.0",
+    "commander": "^14.0.3",
     "js-yaml": "^4.1.1"
   },
   "devDependencies": {
