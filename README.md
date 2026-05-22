@@ -134,6 +134,8 @@ include:
   - "skills/**"
 exclude:
   - "**/draft-*"
+evalIds:
+  - "basic"
 concurrency: 4
 layout: iteration
 strict: true
@@ -155,6 +157,12 @@ OPENAI_API_KEY=... npx agent-skills-eval --config agent-skills-eval.yaml
 ```
 
 CLI flags always override config values.
+
+To iterate on one case, pass `--eval-id` one or more times:
+
+```bash
+OPENAI_API_KEY=... npx agent-skills-eval --config agent-skills-eval.yaml --eval-id basic
+```
 
 ## SDK
 
@@ -300,6 +308,7 @@ npx agent-skills-eval [root] \
   --api-key-env OPENAI_API_KEY \
   --include "skills/**" \
   --exclude "**/draft-*" \
+  --eval-id basic \
   --concurrency 4 \
   --layout iteration \
   --strict \

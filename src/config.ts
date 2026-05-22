@@ -15,6 +15,7 @@ export interface AgentSkillsEvalConfig {
   apiKeyEnv?: string;
   include?: string[];
   exclude?: string[];
+  evalIds?: string[];
   concurrency?: number;
   strict?: boolean;
   layout?: WorkspaceLayout;
@@ -124,6 +125,7 @@ export function normalizeConfig(raw: unknown): AgentSkillsEvalConfig {
     apiKeyEnv: asString(record.apiKeyEnv, "apiKeyEnv"),
     include: asStringArray(record.include, "include"),
     exclude: asStringArray(record.exclude, "exclude"),
+    evalIds: asStringArray(record.evalIds, "evalIds"),
     concurrency: asNumber(record.concurrency, "concurrency"),
     strict: asBoolean(record.strict, "strict"),
     layout: parseLayout(record.layout),

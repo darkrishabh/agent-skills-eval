@@ -16,6 +16,7 @@ interface CliOptions {
   apiKeyEnv?: string;
   include?: string[];
   exclude?: string[];
+  evalId?: string[];
   concurrency?: string;
   report?: boolean;
   color?: boolean;
@@ -61,6 +62,7 @@ async function main(): Promise<void> {
     .option("--api-key-env <name>", "Environment variable containing the API key")
     .option("--include <glob>", "Include skill relPath glob", list, [])
     .option("--exclude <glob>", "Exclude skill relPath glob", list, [])
+    .option("--eval-id <id>", "Run only eval cases with this id", list, [])
     .option("--concurrency <number>", "Eval cases to run in parallel")
     .option("--report", "Generate the static HTML report")
     .option("--no-report", "Skip HTML report generation")
@@ -85,6 +87,7 @@ async function main(): Promise<void> {
   const apiKey = process.env[apiKeyEnv];
   const include = opts.include && opts.include.length > 0 ? opts.include : config.include;
   const exclude = opts.exclude && opts.exclude.length > 0 ? opts.exclude : config.exclude;
+  const evalIds = opts.evalId && opts.evalId.length > 0 ? opts.evalId : config.evalIds;
   const concurrency = opts.concurrency !== undefined
     ? Number.parseInt(opts.concurrency, 10)
     : config.concurrency ?? 4;
@@ -139,6 +142,8 @@ async function main(): Promise<void> {
     const reporter: JsonlReporter = jsonlReporter({ file: logFile });
     onEvent = reporter.onEvent;
     closeReporter = reporter.close;
+  } else {
+    onEvent = () => undefined;
   }
 
   try {
@@ -150,6 +155,7 @@ async function main(): Promise<void> {
       judge: { model: judgeModel, provider: judge },
       include,
       exclude,
+      evalIds,
       concurrency,
       report: enabledReport,
       reportTitle: title,
