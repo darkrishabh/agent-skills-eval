@@ -103,7 +103,7 @@
     "access": "public"
   },
   "dependencies": {
-    "commander": "^12.1.0",
+    "commander": "^15.0.0",
     "js-yaml": "^4.1.1"
   },
   "devDependencies": {
