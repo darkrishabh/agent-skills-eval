@@ -6,6 +6,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { createFakeOpencodeServer } from "./fixtures/fake-opencode-server.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -138,4 +139,93 @@ test("CLI runs from YAML config and writes JSONL logs plus report artifacts", as
   } finally {
     await mock.close();
   }
+});
+
+test("CLI --run-mode opencode skips API credential requirements and runs via the opencode server", async () => {
+  const root = tempRoot();
+  writeSkill(root);
+  const workspace = path.join(root, "workspace");
+  const configPath = path.join(root, "agent-skills-eval.yaml");
+  const logFile = path.join(root, "events.jsonl");
+  const fakeServer = await createFakeOpencodeServer();
+
+  try {
+    writeFileSync(configPath, [
+      `root: ${JSON.stringify(root)}`,
+      `workspace: ${JSON.stringify(workspace)}`,
+      "baseline: true",
+      "target: fake/model",
+      "judge: fake/model",
+      "runMode: opencode",
+      "opencode:",
+      `  baseUrl: ${JSON.stringify(fakeServer.url)}`,
+      "  timeoutMs: 60000",
+      "  judgeTimeoutMs: 120000",
+      "layout: iteration",
+      "strict: true",
+      "report:",
+      "  enabled: false",
+      "logging:",
+      "  format: jsonl",
+      `  file: ${JSON.stringify(logFile)}`,
+    ].join("\n"));
+
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      ["dist/cli.js", "--config", configPath],
+      {
+        cwd: path.resolve("."),
+        env: { ...process.env, OPENAI_API_KEY: "", OPENAI_BASE_URL: "" },
+      },
+    );
+
+    const result = JSON.parse(stdout);
+    assert.equal(result.failed, 0);
+    assert.ok(existsSync(path.join(workspace, "iteration-1", "eval-top-month", "with_skill", "grading.json")));
+  } finally {
+    await fakeServer.close();
+  }
+});
+
+test("CLI --run-mode bogus fails validation with a clear error", async () => {
+  const root = tempRoot();
+  writeSkill(root);
+
+  await assert.rejects(
+    execFileAsync(
+      process.execPath,
+      ["dist/cli.js", root, "--run-mode", "bogus", "--target", "fake/model"],
+      { cwd: path.resolve(".") },
+    ),
+    (err) => {
+      assert.match(err.stderr, /--run-mode must be "api" or "opencode"/);
+      return true;
+    },
+  );
+});
+
+test("CLI --opencode-judge-timeout rejects non-positive values", async () => {
+  const root = tempRoot();
+  writeSkill(root);
+
+  await assert.rejects(
+    execFileAsync(
+      process.execPath,
+      [
+        "dist/cli.js",
+        root,
+        "--run-mode",
+        "opencode",
+        "--target",
+        "fake/model",
+        "--opencode-judge-timeout",
+        "0",
+      ],
+      { cwd: path.resolve(".") },
+    ),
+    (err) => {
+      assert.match(err.stderr, /--opencode-judge-timeout must be a positive integer/);
+      return true;
+    },
+  );
 });

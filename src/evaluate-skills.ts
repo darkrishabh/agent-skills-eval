@@ -154,6 +154,15 @@ export async function evaluateSkills(args: EvaluateSkillsArgs): Promise<Evaluate
 
   const concurrency = Math.max(1, args.concurrency ?? 4);
 
+  // Providers such as OpencodeProvider have no mapping between their own
+  // internal tool use and this SDK's tool_assertions feature, so those
+  // assertions always grade against an empty tool-call list. Warn once so
+  // failures aren't mistaken for model regressions (see README caveats).
+  const supportsToolAssertions =
+    args.target.provider.capabilities?.toolCalls !== false &&
+    args.judge.provider.capabilities?.toolCalls !== false;
+  let warnedToolAssertions = false;
+
   // ─── Phase 1: sequential discovery prep ───────────────────────────────────
   // Allocate skillDir + write meta.json + emit suite-start in discovery order
   // so the start-of-run banner is stable run-to-run regardless of pool size.
@@ -161,6 +170,16 @@ export async function evaluateSkills(args: EvaluateSkillsArgs): Promise<Evaluate
   for (const ref of refs) {
     args.onLog?.(`skill ${ref.name}: loading ${ref.relPath}`);
     const skill = loadSkill(ref.dir, { strict: args.strict });
+    if (
+      !supportsToolAssertions &&
+      !warnedToolAssertions &&
+      skill.evals.some((e) => e.tool_assertions && e.tool_assertions.length > 0)
+    ) {
+      process.stderr.write(
+        "warning: tool_assertions are not supported by the current provider and will always grade against an empty tool-call list (e.g. --run-mode opencode) — see README \"opencode run mode\" caveats.\n"
+      );
+      warnedToolAssertions = true;
+    }
     const slug = slugify(skill.name);
     const skillDir =
       workspaceLayout === "flat"

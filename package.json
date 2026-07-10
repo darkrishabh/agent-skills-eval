@@ -26,6 +26,10 @@
       "import": "./dist/openai-compatible-provider.js",
       "types": "./dist/openai-compatible-provider.d.ts"
     },
+    "./opencode": {
+      "import": "./dist/opencode-provider.js",
+      "types": "./dist/opencode-provider.d.ts"
+    },
     "./config": {
       "import": "./dist/config.js",
       "types": "./dist/config.d.ts"
@@ -103,6 +107,7 @@
     "access": "public"
   },
   "dependencies": {
+    "@opencode-ai/sdk": "^1.17.15",
     "commander": "^12.1.0",
     "js-yaml": "^4.1.1"
   },

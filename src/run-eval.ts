@@ -185,11 +185,20 @@ export async function runEval(args: RunEvalArgs): Promise<RunEvalResult> {
     args.skill.defaults?.judge?.params
   );
 
+  // If the target provider can natively discover skills on disk (e.g.
+  // opencode's own skill-directory scan), let it — don't also inject the
+  // skill into the prompt. `prepareSkill` installs/removes it per mode.
+  const nativeSkillLoading = typeof args.target.provider.prepareSkill === "function";
+
   for (const mode of args.modes) {
     const runDir = path.join(evalDir, mode);
     const outputDir = path.join(runDir, "outputs");
     const evalFiles = mode === "with_skill" ? readEvalFiles(args.skill, args.eval) : [];
-    const system = mode === "with_skill" ? renderSkillSystemMessage(args.skill) : undefined;
+    const system = nativeSkillLoading
+      ? undefined
+      : mode === "with_skill"
+        ? renderSkillSystemMessage(args.skill)
+        : undefined;
     const userMessage = args.eval.prompt;
 
     args.onEvent?.({
@@ -207,16 +216,25 @@ export async function runEval(args: RunEvalArgs): Promise<RunEvalResult> {
       toolChoice: effectiveToolChoice,
     });
 
-    const completion = await completeWithFallback({
-      provider: args.target.provider,
-      system,
-      user: userMessage,
-      attachments: evalFiles,
-      tools: effectiveTools,
-      toolChoice: effectiveToolChoice,
-      params: effectiveTargetParams,
-    });
-    const rawOutput = completion.error ? `ERROR: ${completion.error}` : completion.output;
+    if (nativeSkillLoading) await args.target.provider.prepareSkill!(args.skill, mode);
+    let completion: ProviderResult;
+    try {
+      completion = await completeWithFallback({
+        provider: args.target.provider,
+        system,
+        user: userMessage,
+        attachments: evalFiles,
+        tools: effectiveTools,
+        toolChoice: effectiveToolChoice,
+        params: effectiveTargetParams,
+      });
+    } finally {
+      if (nativeSkillLoading) await args.target.provider.cleanupSkill?.(args.skill, mode);
+    }
+    const rawOutput = completion.error
+      ? `ERROR: ${completion.error}` +
+        (completion.output ? `\n\n---partial output---\n${completion.output}` : "")
+      : completion.output;
     const toolCalls = completion.toolCalls;
     const assertions =
       args.eval.assertions && args.eval.assertions.length > 0
@@ -239,7 +257,7 @@ export async function runEval(args: RunEvalArgs): Promise<RunEvalResult> {
       timing,
       grading,
       rawOutput,
-      [{ path: "output.txt", content: rawOutput }],
+      completion.outputFiles ?? [],
       {
         system,
         user: userMessage,

@@ -1,0 +1,49 @@
+{
+  "skill_name": "quick-review",
+  "evals": [
+    {
+      "id": "review-branch-transfer-endpoint",
+      "name": "review branch — transfer endpoint",
+      "prompt": "I've been working on branch feature/456-add-transfer and think it's ready. Can you do a quick review of my branch before I open a PR?",
+      "expected_output": "A local-mode quick-review report (branch vs main) of just the new transfer() function, flagging the SQL injection from f-string-interpolated queries, the missing check that current_user_id actually owns from_id, the lack of amount validation, and the lack of transaction/rollback safety across the two balance updates — plus a 'What's Working Well' section and no lint/formatting nitpicks.",
+      "assertions": [
+        "The review flags that transfer() builds SQL queries by interpolating variables directly into the string (f-string), which is a SQL injection risk.",
+        "The review flags that transfer() never checks current_user_id against from_id, so any authenticated user could drain any account.",
+        "The review flags that transfer() does not validate amount (e.g. rejecting negative or zero amounts).",
+        "The review flags that the two balance UPDATE statements aren't wrapped in a transaction/rollback, so a failure between them could leave balances inconsistent.",
+        "The output includes a 'What's Working Well' section with at least one concrete positive observation.",
+        "The output uses the skill's severity taxonomy (must-fix/should-fix/consider/optional, or their emoji labels) rather than an unstructured list.",
+        "None of the review's findings are linting, formatting, or compilation nitpicks (e.g. import ordering, PEP 8 style, missing type hints) — a review that simply never raises any such finding satisfies this; it does not need to explicitly state that it considered and excluded them.",
+        "None of the review's severity-tagged findings (must-fix/should-fix/consider/optional, or emoji equivalents) treats reset_all_balances(), the remember-me cookie, or audit_login() as an issue to fix in this review, since none of them are part of this branch-vs-main diff. A brief comparative aside (e.g. contrasting transfer()'s raw SQL with another function's parameterized queries) is fine; raising one of those functions as a finding is not."
+      ]
+    },
+    {
+      "id": "review-staged-remember-me",
+      "name": "review staged — remember-me + reset endpoint",
+      "prompt": "I've staged a 'remember me' option for login plus a quick balance-reset helper for the ops dashboard. Can you quick review what's staged before I commit?",
+      "expected_output": "A local-mode quick-review report of the staged changes only, flagging the plaintext password stored in the remember-me cookie and the fact that reset_all_balances has no authentication or authorization check given how destructive it is, ideally tying these back to the project's own CONTRIBUTING.md conventions.",
+      "assertions": [
+        "The review flags that the remember-me cookie stores the raw/plaintext password (f\"{username}:{password}\"), not a token or hash.",
+        "The review flags that reset_all_balances() has no authentication or authorization check despite resetting every account's balance.",
+        "The review references or aligns with the project's own coding guideline (from CONTRIBUTING.md) about requiring authorization checks and/or not exposing secrets/credentials.",
+        "The output includes a 'What's Working Well' section with at least one concrete positive observation.",
+        "None of the review's findings are linting, formatting, or compilation nitpicks (e.g. import ordering, PEP 8 style, missing type hints) — a review that simply never raises any such finding satisfies this; it does not need to explicitly state that it considered and excluded them."
+      ]
+    },
+    {
+      "id": "review-working-tree-audit-logging",
+      "name": "review working tree — audit logging",
+      "prompt": "Quick review my working tree changes — I added some audit logging around login attempts before I stage them.",
+      "expected_output": "A local-mode quick-review report of all uncommitted changes (staged + unstaged), flagging that audit_login logs the raw password in plaintext and that its deeply nested if/else structure duplicates the same logging call four times, in addition to the still-uncommitted remember-me cookie and reset_all_balances issues.",
+      "assertions": [
+        "The review flags that audit_login logs the raw password value in plaintext via logger.info/logger.warning.",
+        "The review flags the deeply nested, duplicated if/else structure in audit_login as a maintainability/cognitive-load concern (or suggests simplifying it).",
+        "The review notes that audit_login has no docstring while the other new functions in the diff do.",
+        "The review also flags the remember-me plaintext cookie and/or the unauthenticated reset_all_balances(), since git diff HEAD includes staged as well as unstaged changes.",
+        "The review references or aligns with the project's own coding guideline (from CONTRIBUTING.md) about never logging secrets or passwords.",
+        "The output includes a 'What's Working Well' section with at least one concrete positive observation.",
+        "None of the review's findings are linting, formatting, or compilation nitpicks (e.g. import ordering, PEP 8 style, missing type hints) — a review that simply never raises any such finding satisfies this; it does not need to explicitly state that it considered and excluded them."
+      ]
+    }
+  ]
+}

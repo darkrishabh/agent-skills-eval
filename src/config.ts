@@ -4,6 +4,18 @@ import { load } from "js-yaml";
 
 export type LogFormat = "pretty" | "jsonl" | "silent";
 export type WorkspaceLayout = "flat" | "iteration";
+export type ProviderRunMode = "api" | "opencode";
+
+export interface OpencodeConfig {
+  agent?: string;
+  auto?: boolean;
+  dir?: string;
+  timeoutMs?: number;
+  /** Timeout for judge/grader calls. Defaults to `timeoutMs`. Judge sessions read a full transcript plus output files and are often slower than the executor run they grade. */
+  judgeTimeoutMs?: number;
+  /** Talk to an already-running `opencode serve` instead of spawning one. Mainly for tests, but also useful to share one server across multiple invocations. */
+  baseUrl?: string;
+}
 
 export interface AgentSkillsEvalConfig {
   root?: string;
@@ -13,6 +25,8 @@ export interface AgentSkillsEvalConfig {
   judge?: string;
   baseUrl?: string;
   apiKeyEnv?: string;
+  runMode?: ProviderRunMode;
+  opencode?: OpencodeConfig;
   include?: string[];
   exclude?: string[];
   concurrency?: number;
@@ -85,6 +99,25 @@ function parseLogFormat(value: unknown): LogFormat | undefined {
   throw new Error('logging.format must be "pretty", "jsonl", or "silent"');
 }
 
+function parseRunMode(value: unknown): ProviderRunMode | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (value === "api" || value === "opencode") return value;
+  throw new Error('runMode must be "api" or "opencode"');
+}
+
+function parseOpencode(value: unknown): OpencodeConfig | undefined {
+  if (value === undefined || value === null) return undefined;
+  const record = asRecord(value, "opencode");
+  return {
+    agent: asString(record.agent, "opencode.agent"),
+    auto: asBoolean(record.auto, "opencode.auto"),
+    dir: asString(record.dir, "opencode.dir"),
+    timeoutMs: asNumber(record.timeoutMs, "opencode.timeoutMs"),
+    judgeTimeoutMs: asNumber(record.judgeTimeoutMs, "opencode.judgeTimeoutMs"),
+    baseUrl: asString(record.baseUrl, "opencode.baseUrl"),
+  };
+}
+
 function parseReport(value: unknown): AgentSkillsEvalConfig["report"] {
   if (value === undefined || value === null) return undefined;
   if (typeof value === "boolean") return value;
@@ -122,6 +155,8 @@ export function normalizeConfig(raw: unknown): AgentSkillsEvalConfig {
     judge: asString(record.judge, "judge"),
     baseUrl: asString(record.baseUrl, "baseUrl"),
     apiKeyEnv: asString(record.apiKeyEnv, "apiKeyEnv"),
+    runMode: parseRunMode(record.runMode),
+    opencode: parseOpencode(record.opencode),
     include: asStringArray(record.include, "include"),
     exclude: asStringArray(record.exclude, "exclude"),
     concurrency: asNumber(record.concurrency, "concurrency"),

@@ -2,3 +2,4 @@ dist
 node_modules
 *.log
 agent-skills-workspace
+examples/quick-review/evals/fixture-repo
