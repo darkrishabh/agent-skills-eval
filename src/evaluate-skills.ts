@@ -11,17 +11,17 @@ import {
 import { consoleReporter } from "./console-reporter.js";
 import { discoverSkills, type SkillRef } from "./discover.js";
 import { generateReport } from "./report.js";
-import { runEval, type RunMode } from "./run-eval.js";
+import { runEval, evalSlug, validateEvalTarget, type RunMode } from "./run-eval.js";
 import { loadSkill } from "./skill.js";
-import { slugify } from "./fs-utils.js";
-import type { AgentSkillsEval, Skill, SkillsEvent } from "./types.js";
+import { slugify, isInsideDir } from "./fs-utils.js";
+import type { AgentSkillsEval, Skill, SkillsEvent, BenchmarkJson } from "./types.js";
 
 export interface EvaluateSkillsArgs {
   root: string;
   workspace: string;
   baseline?: boolean;
   target: { model: string; provider: Provider };
-  judge: { model: string; provider: Provider };
+  judge?: { model: string; provider: Provider };
   include?: string[];
   exclude?: string[];
   /**
@@ -110,6 +110,7 @@ interface PreparedSkill {
   passed: number;
   failed: number;
   completed: number;
+  triggers: NonNullable<BenchmarkJson["trigger_summary"]>;
 }
 
 interface Task {
@@ -137,6 +138,23 @@ async function runPool<T>(items: T[], n: number, work: (t: T) => Promise<void>):
 
 export async function evaluateSkills(args: EvaluateSkillsArgs): Promise<EvaluateSkillsResult> {
   const refs = discoverSkills(args.root, { include: args.include, exclude: args.exclude }).filter((ref) => ref.hasEvals);
+  if (!refs.length) throw new Error("No skills with evals found");
+  if (args.concurrency !== undefined && (!Number.isInteger(args.concurrency) || args.concurrency < 1)) throw new Error("concurrency must be a positive integer");
+  const loaded = refs.map(ref => loadSkill(ref.dir, { strict: args.strict }));
+  const skillSlugs = loaded.map(skill => slugify(skill.name));
+  if (new Set(skillSlugs).size !== skillSlugs.length) throw new Error("Duplicate skill slug collision; use distinct skill names");
+  for (const skill of loaded) {
+    if (!skill.evals.length) throw new Error(`No eval cases found in ${skill.name}`);
+    const slugs = skill.evals.map(evalSlug);
+    if (new Set(slugs).size !== slugs.length) throw new Error(`Duplicate eval slug collision in ${skill.name}`);
+    for (const evalCase of skill.evals) validateEvalTarget(evalCase, args.target.provider, args.judge);
+    if (args.target.provider.runAgent && (args.targetParams || skill.defaults?.target?.params || skill.defaults?.tools?.length)) {
+      throw new Error("Native runtime targets require runtimeOptions instead of provider params/tools defaults");
+    }
+    if (isInsideDir(args.workspace, skill.dir)) throw new Error("Artifact workspace cannot contain source skill directories");
+    const flatDir = path.join(args.workspace, slugify(skill.name));
+    if (isInsideDir(flatDir, skill.dir)) throw new Error("Artifact workspace would overwrite source skill directory");
+  }
   const modes: RunMode[] = args.baseline ? ["with_skill", "without_skill"] : ["with_skill"];
   const workspaceLayout = args.workspaceLayout ?? "flat";
   const runWorkspace =
@@ -160,7 +178,7 @@ export async function evaluateSkills(args: EvaluateSkillsArgs): Promise<Evaluate
   const prepared: PreparedSkill[] = [];
   for (const ref of refs) {
     args.onLog?.(`skill ${ref.name}: loading ${ref.relPath}`);
-    const skill = loadSkill(ref.dir, { strict: args.strict });
+    const skill = loaded[refs.indexOf(ref)];
     const slug = slugify(skill.name);
     const skillDir =
       workspaceLayout === "flat"
@@ -176,7 +194,9 @@ export async function evaluateSkills(args: EvaluateSkillsArgs): Promise<Evaluate
           slug,
           relPath: ref.relPath,
           target: args.target.model,
-          judge: args.judge.model,
+          judge: args.judge?.model ?? "none",
+          runtime: args.target.provider.runAgent ? args.target.provider.name : "provider",
+          discovery: args.target.provider.runAgent ? "native; inherited user configuration may affect discovery" : "injected skill context",
           modes,
           generated_at: new Date().toISOString(),
         },
@@ -193,10 +213,11 @@ export async function evaluateSkills(args: EvaluateSkillsArgs): Promise<Evaluate
       evalsCount: skill.evals.length,
       modes,
       target: args.target.model,
-      judge: args.judge.model,
+      judge: args.judge?.model ?? "none",
     });
 
-    prepared.push({ ref, skill, slug, skillDir, aggregateRuns: [], passed: 0, failed: 0, completed: 0 });
+    prepared.push({ ref, skill, slug, skillDir, aggregateRuns: [], passed: 0, failed: 0, completed: 0,
+      triggers: {true_positive:0,true_negative:0,false_positive:0,false_negative:0,unknown:0,total:0,accuracy:null,false_positive_rate:null,false_negative_rate:null} });
   }
 
   // ─── Phase 2: flatten (skill, evalCase) tasks + run via worker pool ───────
@@ -255,11 +276,32 @@ export async function evaluateSkills(args: EvaluateSkillsArgs): Promise<Evaluate
     if (withSkill) {
       p.passed += withSkill.grading.summary.passed;
       p.failed += withSkill.grading.summary.failed;
+      if (evalCase.should_trigger !== undefined) {
+        const trace = withSkill.execution?.trace;
+        p.triggers.total++;
+        if (!trace?.complete || trace.errors.length || withSkill.execution?.exitCode !== 0) p.triggers.unknown++;
+        else {
+          const triggered = trace.skillInvocations.some(v => v.name === p.skill.name);
+          if (triggered && evalCase.should_trigger) p.triggers.true_positive++;
+          else if (triggered) p.triggers.false_positive++;
+          else if (evalCase.should_trigger) p.triggers.false_negative++;
+          else p.triggers.true_negative++;
+        }
+      }
     }
 
     p.completed++;
     if (p.completed === p.skill.evals.length) {
       const benchmark = buildBenchmark(p.aggregateRuns);
+      benchmark.runtime = args.target.provider.runAgent ? args.target.provider.name : "provider";
+      if (p.triggers.total) {
+        const t = p.triggers;
+        const negatives = t.false_positive + t.true_negative, positives = t.false_negative + t.true_positive;
+        t.accuracy = (t.true_positive + t.true_negative) / t.total;
+        t.false_positive_rate = negatives ? t.false_positive / negatives : null;
+        t.false_negative_rate = positives ? t.false_negative / positives : null;
+        benchmark.trigger_summary = t;
+      }
       const benchmarkPath = path.join(p.skillDir, "benchmark.json");
       writeFileSync(benchmarkPath, `${JSON.stringify(benchmark, null, 2)}\n`, "utf-8");
       emit?.({
@@ -310,7 +352,7 @@ export async function evaluateSkills(args: EvaluateSkillsArgs): Promise<Evaluate
     const result = generateReport({
       workspace: runWorkspace.dir,
       target: args.target.model,
-      judge: args.judge.model,
+      judge: args.judge?.model ?? "none",
       title: args.reportTitle,
       output: args.reportOutput,
     });

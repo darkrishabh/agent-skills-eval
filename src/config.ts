@@ -1,11 +1,18 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { load } from "js-yaml";
+import { parseRuntimeOptions } from "./runtime-config.js";
+import type { RuntimeName, RuntimeOptions } from "./runtime-types.js";
 
 export type LogFormat = "pretty" | "jsonl" | "silent";
 export type WorkspaceLayout = "flat" | "iteration";
 
 export interface AgentSkillsEvalConfig {
+  runtime?: "provider" | RuntimeName;
+  judgeRuntime?: "provider" | RuntimeName | "none";
+  runtimeOptions?: Omit<RuntimeOptions, "runtime" | "model">;
+  judgeOptions?: Omit<RuntimeOptions, "runtime" | "model">;
+  structuredOutput?: boolean;
   root?: string;
   workspace?: string;
   baseline?: boolean;
@@ -114,7 +121,14 @@ function parseLogging(value: unknown): AgentSkillsEvalConfig["logging"] {
 
 export function normalizeConfig(raw: unknown): AgentSkillsEvalConfig {
   const record = asRecord(raw ?? {}, "config");
+  if (record.runtime !== undefined && !["provider", "codex", "claude"].includes(String(record.runtime))) throw new Error('runtime must be "provider", "codex", or "claude"');
+  if (record.judgeRuntime !== undefined && !["provider", "codex", "claude", "none"].includes(String(record.judgeRuntime))) throw new Error('judgeRuntime must be "provider", "codex", "claude", or "none"');
   return {
+    runtime: record.runtime as AgentSkillsEvalConfig["runtime"],
+    judgeRuntime: record.judgeRuntime as AgentSkillsEvalConfig["judgeRuntime"],
+    runtimeOptions: parseRuntimeOptions(record.runtimeOptions),
+    judgeOptions: parseRuntimeOptions(record.judgeOptions, "judgeOptions"),
+    structuredOutput: asBoolean(record.structuredOutput, "structuredOutput"),
     root: asString(record.root, "root"),
     workspace: asString(record.workspace, "workspace"),
     baseline: asBoolean(record.baseline, "baseline"),

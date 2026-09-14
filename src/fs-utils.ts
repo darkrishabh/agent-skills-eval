@@ -16,8 +16,12 @@ export function ensureDir(dir: string): void {
 }
 
 export function isInsideDir(root: string, candidate: string): boolean {
-  const rootDir = path.resolve(root);
-  const absolutePath = path.resolve(candidate);
+  let rootDir = path.resolve(root);
+  let absolutePath = path.resolve(candidate);
+  if (process.platform === "win32") {
+    rootDir = rootDir.toLowerCase();
+    absolutePath = absolutePath.toLowerCase();
+  }
   return absolutePath === rootDir || absolutePath.startsWith(rootDir + path.sep);
 }
 

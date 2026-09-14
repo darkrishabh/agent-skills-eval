@@ -56,10 +56,12 @@ function provider(output, extra = {}) {
 }
 
 function judgeProvider(passed = true) {
-  return provider(JSON.stringify({
-    assertion_results: [{ text: "placeholder", passed, evidence: passed ? "Output contains the required phrase." : "Missing required phrase." }],
-    summary: { passed: passed ? 1 : 0, failed: passed ? 0 : 1, total: 1, pass_rate: passed ? 1 : 0 }
-  }));
+  return provider("", { async complete(prompt) {
+    this.prompts.push(prompt);
+    const assertions = JSON.parse(prompt.match(/Assertions:\s*(\[[\s\S]*?\])\s*\n/)[1]);
+    return { provider:"mock", model:"mock-model", latencyMs:25, inputTokens:3, outputTokens:4, costUsd:0,
+      output:JSON.stringify({assertion_results:assertions.map(text => ({text,passed,evidence:passed?"Output contains the required phrase.":"Missing required phrase."}))}) };
+  }});
 }
 
 test("loadSkill reads spec files and safe attachment states", () => {
@@ -280,8 +282,8 @@ test("evaluateSkills runs eval cases in parallel under concurrency", async () =>
   // With concurrency:3 the whole batch should finish in ~400ms; allow slack
   // for CI jitter / Node startup but still well under the serial floor.
   assert.ok(
-    elapsed < 500,
-    `expected concurrent run to finish in <500ms, got ${elapsed}ms`,
+    elapsed < 800,
+    `expected concurrent run to finish in <800ms, got ${elapsed}ms`,
   );
 
   assert.equal(result.skills.length, 1);

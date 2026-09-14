@@ -11,6 +11,7 @@ import type {
   ToolDef,
 } from "./types.js";
 import { isInsideDir, pathToPosix, readAttachedFile } from "./fs-utils.js";
+import { optionalBoolean, parseRuntimeChecks, parseVerification, stringList } from "./runtime-config.js";
 export type { AgentSkillsEval, AttachedFile, Skill } from "./types.js";
 
 interface SkillFrontmatter {
@@ -307,6 +308,10 @@ function parseEval(entry: unknown, evalIndex: number): AgentSkillsEval {
   const where = `evals[${evalIndex}]`;
   return {
     id: typeof record.id === "string" || typeof record.id === "number" ? record.id : undefined,
+    should_trigger: optionalBoolean(record.should_trigger, `${where}.should_trigger`),
+    runtime_checks: parseRuntimeChecks(record.runtime_checks, `${where}.runtime_checks`),
+    verification: parseVerification(record.verification, `${where}.verification`),
+    captured_files: stringList(record.captured_files, `${where}.captured_files`, true),
     name: typeof record.name === "string" ? record.name : undefined,
     prompt,
     expected_output: typeof record.expected_output === "string" ? record.expected_output : undefined,

@@ -1,0 +1,167 @@
+{
+  "skill_name": "runtime-skill",
+  "evals": [
+    {
+      "id": "explicit",
+      "name": "Explicit skill request",
+      "prompt": "Use the runtime-skill skill to complete this task. Use Node.js to read evals/files/labels.json, trim and lowercase its labels, discard empty labels, remove duplicates, and sort by code point. Write only report.json with exactly the JSON fields format: \"runtime-report/v1\", count, and labels. count is the number of normalized labels. Leave the input unchanged.",
+      "should_trigger": true,
+      "assertions": [],
+      "files": [
+        "evals/files/labels.json"
+      ],
+      "captured_files": [
+        "report.json"
+      ],
+      "runtime_checks": {
+        "requiredCommands": [
+          "node"
+        ],
+        "requiredFiles": [
+          "report.json"
+        ],
+        "forbiddenFiles": [
+          "package-lock.json"
+        ],
+        "fileContents": [
+          {
+            "path": "report.json",
+            "contains": "runtime-report/v1"
+          }
+        ],
+        "allowedChanges": [
+          "report.json"
+        ],
+        "maxCommands": 15,
+        "maxRepeatedCommands": 2,
+        "maxDurationMs": 120000,
+        "noPermissionDenials": true
+      },
+      "verification": [
+        {
+          "name": "report-contract",
+          "command": "node",
+          "args": [
+            "-e",
+            "const fs=require('node:fs'); const assert=require('node:assert/strict'); const report=JSON.parse(fs.readFileSync('report.json','utf8')); assert.deepEqual(report,{format:'runtime-report/v1',count:3,labels:['alpha','beta','gamma']}); console.log('report contract passed');"
+          ],
+          "timeoutMs": 10000
+        }
+      ]
+    },
+    {
+      "id": "implicit",
+      "name": "Implicit description match",
+      "prompt": "Use Node.js to read evals/files/labels.json, trim and lowercase its labels, discard empty labels, remove duplicates, and sort by code point. Write only report.json with exactly the JSON fields format: \"runtime-report/v1\", count, and labels. count is the number of normalized labels. Leave the input unchanged.",
+      "should_trigger": true,
+      "assertions": [],
+      "files": [
+        "evals/files/labels.json"
+      ],
+      "captured_files": [
+        "report.json"
+      ],
+      "runtime_checks": {
+        "requiredCommands": [
+          "node"
+        ],
+        "requiredFiles": [
+          "report.json"
+        ],
+        "forbiddenFiles": [
+          "package-lock.json"
+        ],
+        "fileContents": [
+          {
+            "path": "report.json",
+            "contains": "runtime-report/v1"
+          }
+        ],
+        "allowedChanges": [
+          "report.json"
+        ],
+        "maxCommands": 15,
+        "maxRepeatedCommands": 2,
+        "maxDurationMs": 120000,
+        "noPermissionDenials": true
+      },
+      "verification": [
+        {
+          "name": "report-contract",
+          "command": "node",
+          "args": [
+            "-e",
+            "const fs=require('node:fs'); const assert=require('node:assert/strict'); const report=JSON.parse(fs.readFileSync('report.json','utf8')); assert.deepEqual(report,{format:'runtime-report/v1',count:3,labels:['alpha','beta','gamma']}); console.log('report contract passed');"
+          ],
+          "timeoutMs": 10000
+        }
+      ]
+    },
+    {
+      "id": "contextual",
+      "name": "Local handoff supplies the task",
+      "should_trigger": true,
+      "assertions": [],
+      "files": [
+        "evals/files/labels.json",
+        "evals/files/request.md"
+      ],
+      "captured_files": [
+        "report.json"
+      ],
+      "runtime_checks": {
+        "requiredCommands": [
+          "node"
+        ],
+        "requiredFiles": [
+          "report.json"
+        ],
+        "forbiddenFiles": [
+          "package-lock.json"
+        ],
+        "fileContents": [
+          {
+            "path": "report.json",
+            "contains": "runtime-report/v1"
+          }
+        ],
+        "allowedChanges": [
+          "report.json"
+        ],
+        "maxCommands": 15,
+        "maxRepeatedCommands": 2,
+        "maxDurationMs": 120000,
+        "noPermissionDenials": true
+      },
+      "verification": [
+        {
+          "name": "report-contract",
+          "command": "node",
+          "args": [
+            "-e",
+            "const fs=require('node:fs'); const assert=require('node:assert/strict'); const report=JSON.parse(fs.readFileSync('report.json','utf8')); assert.deepEqual(report,{format:'runtime-report/v1',count:3,labels:['alpha','beta','gamma']}); console.log('report contract passed');"
+          ],
+          "timeoutMs": 10000
+        }
+      ],
+      "prompt": "Read evals/files/request.md and complete the local inventory handoff described there."
+    },
+    {
+      "id": "negative",
+      "name": "Unrelated question must not trigger",
+      "prompt": "What is 2 + 2? Reply with the number only. This is a conversational question; do not create or modify files.",
+      "should_trigger": false,
+      "assertions": [],
+      "files": [],
+      "runtime_checks": {
+        "forbiddenFiles": [
+          "report.json"
+        ],
+        "allowedChanges": [],
+        "maxCommands": 3,
+        "maxDurationMs": 120000,
+        "noPermissionDenials": true
+      }
+    }
+  ]
+}

@@ -259,12 +259,12 @@ function renderAssertionsTable(grading: GradingJson): string {
         <tr class="${r.passed ? "ok" : "bad"}">
           <td class="num">${i + 1}</td>
           <td>${r.passed ? "<span class='check'>\u2713</span>" : "<span class='x'>\u2717</span>"}</td>
-          <td>${escapeHtml(r.text)}</td>
+          <td>${r.category ? `<span class="category">${escapeHtml(r.category)}</span> ` : ""}${escapeHtml(r.text)}</td>
           <td><span class="evidence">${escapeHtml(r.evidence || "—")}</span></td>
         </tr>`
     )
     .join("\n");
-  return `<table class="assertions"><thead><tr><th>#</th><th></th><th>Assertion</th><th>Evidence</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<table class="assertions"><thead><tr><th>#</th><th></th><th>Assertion / category</th><th>Evidence</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function renderToolCallsPanel(calls: ToolCall[] | undefined): string {
