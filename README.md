@@ -6,6 +6,8 @@
 
 # agent-skills-eval
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 **A test runner for [Agent Skills](https://agentskills.io).**
 
 Write a `SKILL.md`, drop in some evals, and find out — empirically — whether your skill actually makes the model better at the task.
