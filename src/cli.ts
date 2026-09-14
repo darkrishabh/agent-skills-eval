@@ -5,8 +5,16 @@ import { consoleReporter } from "./console-reporter.js";
 import { evaluateSkills } from "./evaluate-skills.js";
 import { jsonlReporter, type JsonlReporter } from "./jsonl-reporter.js";
 import { OpenAICompatibleProvider } from "./openai-compatible-provider.js";
+import { RuntimeProvider } from "./runtime-provider.js";
+import { normalizeConfig } from "./config.js";
+import type { Provider } from "./provider.js";
 
 interface CliOptions {
+  runtime?: "provider" | "codex" | "claude";
+  judgeRuntime?: "provider" | "codex" | "claude" | "none";
+  executable?: string;
+  timeoutMs?: string;
+  allowWrites?: boolean;
   config?: string;
   workspace?: string;
   baseline?: boolean;
@@ -56,6 +64,12 @@ async function main(): Promise<void> {
     .option("--workspace <path>", "Workspace directory for artifacts")
     .option("--baseline", "Run both with_skill and without_skill modes")
     .option("--target <model>", "Target model name")
+    .option("--runtime <runtime>", "Target runtime: provider, codex, or claude")
+    .option("--judge-runtime <runtime>", "Judge: provider, codex, claude, or none; defaults to target runtime")
+    .option("--executable <path>", "Path to the native target CLI executable")
+    .option("--timeout-ms <number>", "Native target process timeout")
+    .option("--allow-writes", "Enable native target workspace writes (no permission bypass)")
+    .option("--no-allow-writes", "Use native target default noninteractive permissions")
     .option("--judge <model>", "Judge model name; defaults to --target")
     .option("--base-url <url>", "OpenAI-compatible API base URL")
     .option("--api-key-env <name>", "Environment variable containing the API key")
@@ -78,15 +92,23 @@ async function main(): Promise<void> {
   const config = opts.config ? loadConfigFile(opts.config) : {};
   const root = program.args[0] !== undefined && program.args[0] !== "." ? program.args[0] : config.root ?? ".";
   const workspace = opts.workspace ?? config.workspace ?? "./agent-skills-workspace";
-  const targetModel = opts.target ?? config.target ?? "gpt-4o-mini";
-  const judgeModel = opts.judge ?? config.judge ?? targetModel;
+  const runtime = opts.runtime ?? config.runtime ?? "provider";
+  const judgeRuntime = opts.judgeRuntime ?? config.judgeRuntime ?? runtime;
+  const runtimeOptions = { ...config.runtimeOptions,
+    ...(opts.executable !== undefined ? {executable:opts.executable} : {}),
+    ...(opts.timeoutMs !== undefined ? {timeoutMs:Number(opts.timeoutMs)} : {}),
+    ...(opts.allowWrites !== undefined ? {allowWrites:opts.allowWrites} : {}),
+  };
+  normalizeConfig({runtime, judgeRuntime, runtimeOptions});
+  const targetModel = opts.target ?? config.target ?? (runtime === "provider" ? "gpt-4o-mini" : undefined);
+  const judgeModel = opts.judge ?? config.judge ?? (judgeRuntime === runtime ? targetModel : judgeRuntime === "provider" ? "gpt-4o-mini" : undefined);
   const apiKeyEnv = opts.apiKeyEnv ?? config.apiKeyEnv ?? "OPENAI_API_KEY";
   const baseUrl = opts.baseUrl ?? config.baseUrl ?? process.env.OPENAI_BASE_URL;
   const apiKey = process.env[apiKeyEnv];
   const include = opts.include && opts.include.length > 0 ? opts.include : config.include;
   const exclude = opts.exclude && opts.exclude.length > 0 ? opts.exclude : config.exclude;
   const concurrency = opts.concurrency !== undefined
-    ? Number.parseInt(opts.concurrency, 10)
+    ? Number(opts.concurrency)
     : config.concurrency ?? 4;
   const layout = opts.layout ?? config.layout ?? "iteration";
   const strict = opts.strict ?? config.strict ?? false;
@@ -98,10 +120,11 @@ async function main(): Promise<void> {
   const verbose = opts.verbose ?? config.logging?.verbose ?? false;
   const color = opts.color ?? config.logging?.color ?? "auto";
 
-  if (!baseUrl) {
+  const needsApi = runtime === "provider" || judgeRuntime === "provider";
+  if (needsApi && !baseUrl) {
     throw new Error("provide --base-url or set OPENAI_BASE_URL");
   }
-  if (!apiKey) {
+  if (needsApi && !apiKey) {
     throw new Error(`environment variable ${apiKeyEnv} is not set`);
   }
   if (layout !== "iteration" && layout !== "flat") {
@@ -114,21 +137,15 @@ async function main(): Promise<void> {
     throw new Error('--log-format must be "pretty", "jsonl", or "silent"');
   }
 
-  const target = new OpenAICompatibleProvider({
-    providerName: "openai-compatible",
-    baseUrl,
-    apiKey,
-    model: targetModel,
+  const apiProvider = (model: string | undefined) => new OpenAICompatibleProvider({
+    providerName:"openai-compatible", baseUrl:baseUrl!, apiKey:apiKey!, model:model!, structuredOutput:config.structuredOutput,
   });
-  const judge = new OpenAICompatibleProvider({
-    providerName: "openai-compatible",
-    baseUrl,
-    apiKey,
-    model: judgeModel,
-  });
+  const target: Provider = runtime === "provider" ? apiProvider(targetModel) : new RuntimeProvider({...runtimeOptions, runtime, model:targetModel});
+  const judge: Provider | undefined = judgeRuntime === "none" ? undefined : judgeRuntime === "provider" ? apiProvider(judgeModel)
+    : new RuntimeProvider({...config.judgeOptions, runtime:judgeRuntime, model:judgeModel});
 
   let closeReporter: (() => Promise<void>) | undefined;
-  let onEvent;
+  let onEvent = (_event: import("./types.js").SkillsEvent): void => {};
   if (logFormat === "pretty") {
     onEvent = consoleReporter({
       color,
@@ -146,8 +163,8 @@ async function main(): Promise<void> {
       root,
       workspace,
       baseline: opts.baseline ?? config.baseline ?? false,
-      target: { model: targetModel, provider: target },
-      judge: { model: judgeModel, provider: judge },
+      target: { model: target.model, provider: target },
+      judge: judge ? { model: judge.model, provider: judge } : undefined,
       include,
       exclude,
       concurrency,

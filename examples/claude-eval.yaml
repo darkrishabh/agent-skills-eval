@@ -1,0 +1,16 @@
+# Run from the repository root: node dist/cli.js --config examples/claude-eval.yaml
+root: ./examples/runtime-skill
+workspace: ./agent-skills-workspace
+runtime: claude
+judgeRuntime: none
+runtimeOptions:
+  allowWrites: true
+  allowedTools: [Read, Write, Edit, Bash, Skill]
+  timeoutMs: 120000
+baseline: true
+concurrency: 1
+layout: iteration
+strict: true
+report:
+  enabled: true
+  title: Claude Code runtime skill evaluation

@@ -6,6 +6,8 @@
 
 # agent-skills-eval
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 **A test runner for [Agent Skills](https://agentskills.io).**
 
 Write a `SKILL.md`, drop in some evals, and find out — empirically — whether your skill actually makes the model better at the task.
@@ -321,6 +323,27 @@ The static HTML report is built from disk artifacts and shows everything you'd w
 - Tool calls when present
 
 Use `--report-output` (or `report.output` in YAML) to choose where the report lands.
+
+## Native Codex and Claude Code evals
+
+The evaluator can run the same `evals/evals.json` suite through the native Codex
+or Claude Code CLI. Set `runtime: codex` or `runtime: claude` in YAML, use
+`baseline: true` for a fair with/without-skill comparison, and add
+`should_trigger`, `runtime_checks`, `verification`, and `captured_files` to an
+eval case. Native runs execute in a fresh scratch workspace and save the raw
+JSONL trace, execution metadata, deterministic grading, captured files, and
+verification logs. Use `judgeRuntime: none` when deterministic checks are enough;
+otherwise select a provider or native judge.
+
+```bash
+node dist/cli.js --config examples/codex-eval.yaml
+node dist/cli.js --config examples/claude-eval.yaml
+```
+
+See [the Chinese runtime guide](docs/runtime-evaluation.zh-CN.md) for the full
+schema, permissions, artifacts, and limitations. Codex uses `codex exec --json`;
+Claude Code uses `claude -p --output-format stream-json`, so the adapters are
+usable from both environments without changing the eval data.
 
 ## agentskills.io compatibility
 

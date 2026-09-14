@@ -14,6 +14,8 @@ export interface OpenAICompatibleOptions {
   /** Extra headers to merge into every request (e.g. HTTP-Referer for OpenRouter) */
   extraHeaders?: Record<string, string>;
   timeoutMs?: number;
+  /** Disable for compatible endpoints/models without JSON Schema support. */
+  structuredOutput?: boolean;
   retry?: {
     attempts?: number;
     backoffMs?: number;
@@ -90,7 +92,7 @@ function parseToolCalls(raw: OpenAIToolCallWire[] | undefined): ToolCall[] | und
 }
 
 export class OpenAICompatibleProvider implements Provider {
-  readonly capabilities = { systemRole: true, attachments: false, toolCalls: true };
+  readonly capabilities: { systemRole: boolean; attachments: boolean; toolCalls: boolean; structuredOutput: boolean };
   /** Shown as `provider` in ProviderResult — pass the human name, e.g. "openai", "groq" */
   readonly name: string;
   readonly model: string;
@@ -118,6 +120,8 @@ export class OpenAICompatibleProvider implements Provider {
       this.model = nameOrOptions.model ?? "gpt-4o-mini";
       this.options = nameOrOptions;
     }
+    this.capabilities = { systemRole: true, attachments: false, toolCalls: true,
+      structuredOutput: this.options.structuredOutput !== false };
   }
 
   async complete(prompt: string): Promise<ProviderResult> {
@@ -131,6 +135,7 @@ export class OpenAICompatibleProvider implements Provider {
     tools?: ToolDef[];
     toolChoice?: ToolChoice;
     params?: Record<string, unknown>;
+    outputSchema?: Record<string, unknown>;
   }): Promise<ProviderResult> {
     const start = Date.now();
     try {
@@ -171,6 +176,13 @@ export class OpenAICompatibleProvider implements Provider {
       }
 
       Object.assign(body, params);
+
+      if (args.outputSchema && this.capabilities.structuredOutput) {
+        body.response_format = {
+          type: "json_schema",
+          json_schema: { name: "evaluation_result", strict: true, schema: args.outputSchema },
+        };
+      }
 
       if (args.tools && args.tools.length > 0) {
         body.tools = args.tools;

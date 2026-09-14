@@ -1,9 +1,11 @@
 import type { AttachedFile } from "./types.js";
+import type { AgentRunArgs, RuntimeExecution } from "./runtime-types.js";
 
 export interface ProviderCapabilities {
   attachments?: boolean;
   systemRole?: boolean;
   toolCalls?: boolean;
+  structuredOutput?: boolean;
 }
 
 export interface ToolFunctionDef {
@@ -40,6 +42,7 @@ export interface ProviderResult {
   costUsd: number;
   error?: string;
   toolCalls?: ToolCall[];
+  execution?: RuntimeExecution;
 }
 
 export interface CompleteChatArgs {
@@ -50,6 +53,7 @@ export interface CompleteChatArgs {
   tools?: ToolDef[];
   toolChoice?: ToolChoice;
   params?: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
 }
 
 export interface Provider {
@@ -58,6 +62,7 @@ export interface Provider {
   readonly capabilities?: ProviderCapabilities;
   complete(prompt: string): Promise<ProviderResult>;
   completeChat?(args: CompleteChatArgs): Promise<ProviderResult>;
+  runAgent?(args: AgentRunArgs): Promise<ProviderResult>;
 }
 
 export function createStaticProvider(output: string, options: Partial<ProviderResult> = {}): Provider {

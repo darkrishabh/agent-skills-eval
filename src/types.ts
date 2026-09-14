@@ -1,5 +1,6 @@
 import type { Provider } from "./provider.js";
 import type { ToolCall, ToolChoice, ToolDef } from "./provider.js";
+import type { RuntimeChecks, VerificationCommand } from "./runtime-types.js";
 
 export type { ToolCall, ToolChoice, ToolDef } from "./provider.js";
 
@@ -24,6 +25,11 @@ export type ToolAssertion =
   | { type: "tool-call-count";   name?: string; min?: number; max?: number;                   description?: string };
 
 export interface AgentSkillsEval {
+  /** Native skill loading expectation; supported only by agent runtimes. */
+  should_trigger?: boolean;
+  runtime_checks?: RuntimeChecks;
+  verification?: VerificationCommand[];
+  captured_files?: string[];
   id?: number | string;
   name?: string;
   prompt: string;
@@ -73,6 +79,7 @@ export interface SkillModelTarget {
 }
 
 export interface AssertionResult {
+  category?: "process" | "outcome" | "style" | "efficiency";
   text: string;
   passed: boolean;
   evidence: string;
@@ -81,6 +88,7 @@ export interface AssertionResult {
 export interface GradingJson {
   assertion_results: AssertionResult[];
   summary: { passed: number; failed: number; total: number; pass_rate: number };
+  categories?: Partial<Record<"process" | "outcome" | "style" | "efficiency", { passed: number; failed: number; total: number; pass_rate: number }>>;
 }
 
 export interface AggStats {
@@ -90,6 +98,11 @@ export interface AggStats {
 }
 
 export interface BenchmarkJson {
+  runtime?: string;
+  trigger_summary?: {
+    true_positive: number; true_negative: number; false_positive: number; false_negative: number;
+    unknown: number; total: number; accuracy: number | null; false_positive_rate: number | null; false_negative_rate: number | null;
+  };
   run_summary: {
     with_skill: AggStats;
     without_skill?: AggStats;

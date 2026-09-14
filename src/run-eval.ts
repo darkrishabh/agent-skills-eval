@@ -1,8 +1,13 @@
 import path from "node:path";
+import { mkdirSync, writeFileSync } from "node:fs";
 import type { Provider } from "./provider.js";
 import type { ProviderResult } from "./provider.js";
 import { writeRunArtifacts } from "./artifacts.js";
 import { gradeOutputs } from "./grade.js";
+import { gradeRuntime } from "./runtime.js";
+import type { RuntimeExecution } from "./runtime-types.js";
+import type { AssertionResult } from "./types.js";
+import { parseRuntimeChecks, parseVerification, optionalBoolean, stringList } from "./runtime-config.js";
 import type {
   AgentSkillsEval,
   AttachedFile,
@@ -22,7 +27,7 @@ export interface RunEvalArgs {
   eval: AgentSkillsEval;
   modes: RunMode[];
   target: { model: string; provider: Provider };
-  judge: { model: string; provider: Provider };
+  judge?: { model: string; provider: Provider };
   workspace: string;
   iteration: number;
   gradingPrompt?: string;
@@ -58,10 +63,11 @@ export interface RunEvalResult {
     /** Tools made available for this run, if any. */
     tools?: ToolDef[];
     toolChoice?: ToolChoice;
+    execution?: RuntimeExecution;
   }>;
 }
 
-function evalSlug(evalCase: AgentSkillsEval, index = 0): string {
+export function evalSlug(evalCase: AgentSkillsEval, index = 0): string {
   const source = evalCase.name ?? (evalCase.id !== undefined ? `eval-${String(evalCase.id)}` : `eval-${index + 1}`);
   const slug = slugify(source, `eval-${index + 1}`);
   return slug.startsWith("eval-") ? slug : `eval-${slug}`;
@@ -156,13 +162,16 @@ function mergeParams(
 
 function timingFrom(result: ProviderResult): { total_tokens: number; duration_ms: number } {
   return {
-    total_tokens: (result.inputTokens ?? 0) + (result.outputTokens ?? 0),
+    total_tokens: result.execution && result.inputTokens === 0 && result.outputTokens === 0 &&
+      (result.execution.trace.inputTokens === undefined || result.execution.trace.outputTokens === undefined)
+      ? -1 : (result.inputTokens ?? 0) + (result.outputTokens ?? 0),
     duration_ms: result.latencyMs ?? 0,
   };
 }
 
 export async function runEval(args: RunEvalArgs): Promise<RunEvalResult> {
   if (args.modes.length === 0) throw new Error("runEval requires at least one mode");
+  validateEvalTarget(args.eval, args.target.provider, args.judge);
 
   const slug = evalSlug(args.eval, args.index);
   const evalDir = path.join(args.evalRootDir ?? path.join(args.workspace, `iteration-${args.iteration}`), slug);
@@ -188,8 +197,8 @@ export async function runEval(args: RunEvalArgs): Promise<RunEvalResult> {
   for (const mode of args.modes) {
     const runDir = path.join(evalDir, mode);
     const outputDir = path.join(runDir, "outputs");
-    const evalFiles = mode === "with_skill" ? readEvalFiles(args.skill, args.eval) : [];
-    const system = mode === "with_skill" ? renderSkillSystemMessage(args.skill) : undefined;
+    const evalFiles = readEvalFiles(args.skill, args.eval);
+    const system = mode === "with_skill" && !args.target.provider.runAgent ? renderSkillSystemMessage(args.skill) : undefined;
     const userMessage = args.eval.prompt;
 
     args.onEvent?.({
@@ -207,15 +216,18 @@ export async function runEval(args: RunEvalArgs): Promise<RunEvalResult> {
       toolChoice: effectiveToolChoice,
     });
 
-    const completion = await completeWithFallback({
-      provider: args.target.provider,
-      system,
-      user: userMessage,
-      attachments: evalFiles,
-      tools: effectiveTools,
-      toolChoice: effectiveToolChoice,
-      params: effectiveTargetParams,
-    });
+    let completion: ProviderResult;
+    try {
+      completion = args.target.provider.runAgent
+        ? await args.target.provider.runAgent({ skill: args.skill, eval: args.eval, mode, runDir })
+        : await completeWithFallback({
+          provider: args.target.provider, system, user: userMessage, attachments: evalFiles,
+          tools: effectiveTools, toolChoice: effectiveToolChoice, params: effectiveTargetParams,
+        });
+    } catch (error) {
+      completion = { provider: args.target.provider.name, model: args.target.model, output: "", inputTokens: 0,
+        outputTokens: 0, costUsd: 0, latencyMs: 0, error: error instanceof Error ? error.message : String(error) };
+    }
     const rawOutput = completion.error ? `ERROR: ${completion.error}` : completion.output;
     const toolCalls = completion.toolCalls;
     const assertions =
@@ -224,8 +236,9 @@ export async function runEval(args: RunEvalArgs): Promise<RunEvalResult> {
         : args.eval.expected_output
           ? [`The output satisfies this expected output: ${args.eval.expected_output}`]
           : [];
-    const { grading, judgePrompt } = await gradeOutputs({
+    const { grading: rubric, judgePrompt, judgeResponse } = await gradeOutputs({
       modelOutput: rawOutput,
+      outputFiles: completion.execution?.outputFiles,
       assertions,
       toolCalls,
       toolAssertions: args.eval.tool_assertions,
@@ -233,6 +246,15 @@ export async function runEval(args: RunEvalArgs): Promise<RunEvalResult> {
       judgeParams: effectiveJudgeParams,
       gradingPrompt: args.gradingPrompt,
     });
+    const deterministic: AssertionResult[] = completion.execution
+      ? gradeRuntime(completion.execution, args.eval.runtime_checks ?? {}, {
+        skillName: args.skill.name,
+        shouldTrigger: args.eval.should_trigger === undefined ? undefined : mode === "with_skill" && args.eval.should_trigger,
+      })
+      : [];
+    if (completion.error) deterministic.push({ text: "Target completed successfully", passed: false, evidence: completion.error, category: "outcome" });
+    if (args.target.provider.runAgent && !completion.execution && !completion.error) deterministic.push({ text: "Runtime supplied execution evidence", passed: false, evidence: "Missing execution trace", category: "process" });
+    const grading = summarizeGrading([...rubric.assertion_results, ...deterministic]);
     const timing = timingFrom(completion);
     writeRunArtifacts(
       runDir,
@@ -250,6 +272,16 @@ export async function runEval(args: RunEvalArgs): Promise<RunEvalResult> {
       },
       toolCalls
     );
+    writeJson(runDir, "deterministic-grading.json", summarizeGrading([...rubric.assertion_results.filter(r => r.category === "process"), ...deterministic]));
+    writeJson(runDir, "rubric-grading.json", summarizeGrading(rubric.assertion_results.filter(r => r.category !== "process")));
+    writeFileSync(path.join(runDir, "judge-response.txt"), judgeResponse, "utf8");
+    if (completion.execution) {
+      const execution = completion.execution;
+      writeJson(runDir, "trace.json", execution.trace);
+      writeJson(runDir, "execution.json", execution);
+      writeFileSync(path.join(runDir, "trace.jsonl"), execution.stdout, "utf8");
+      writeFileSync(path.join(runDir, "stderr.txt"), execution.stderr, "utf8");
+    }
 
     result.modes[mode] = {
       outputDir,
@@ -263,6 +295,7 @@ export async function runEval(args: RunEvalArgs): Promise<RunEvalResult> {
       judgePrompt,
       tools: effectiveTools,
       toolChoice: effectiveToolChoice,
+      execution: completion.execution,
     };
 
     args.onEvent?.({
@@ -282,4 +315,37 @@ export async function runEval(args: RunEvalArgs): Promise<RunEvalResult> {
   }
 
   return result;
+}
+
+export function summarizeGrading(results: AssertionResult[]): GradingJson {
+  const summary = (rows: AssertionResult[]) => {
+    const passed = rows.filter(r => r.passed).length;
+    return { passed, failed: rows.length - passed, total: rows.length, pass_rate: rows.length ? passed / rows.length : 1 };
+  };
+  const categories: GradingJson["categories"] = {};
+  for (const category of ["process", "outcome", "style", "efficiency"] as const) {
+    const rows = results.filter(r => r.category === category);
+    if (rows.length) categories[category] = summary(rows);
+  }
+  return { assertion_results: results, summary: summary(results), categories };
+}
+
+function writeJson(dir: string, file: string, value: unknown): void {
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, file), `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+export function validateEvalTarget(evalCase: AgentSkillsEval, provider: Provider, judge?: { model: string; provider: Provider }): void {
+  parseRuntimeChecks(evalCase.runtime_checks);
+  parseVerification(evalCase.verification);
+  optionalBoolean(evalCase.should_trigger, "should_trigger");
+  stringList(evalCase.captured_files, "captured_files", true);
+  if ((evalCase.should_trigger !== undefined || evalCase.runtime_checks || evalCase.verification?.length || evalCase.captured_files?.length) && !provider.runAgent) {
+    throw new Error("Native runtime checks require a codex or claude runtime target");
+  }
+  if (provider.runAgent && (evalCase.tools?.length || evalCase.tool_choice || (evalCase.params && Object.keys(evalCase.params).length))) {
+    throw new Error("Runtime targets use native tools and runtimeOptions; provider tools/tool_choice/params are not supported");
+  }
+  if (!judge && (evalCase.assertions?.length || evalCase.expected_output)) throw new Error("Rubric assertions require a judge; select a judge runtime or remove rubric assertions for deterministic-only runs");
+  if (new Set(evalCase.assertions).size !== (evalCase.assertions?.length ?? 0)) throw new Error("Duplicate rubric assertions are not supported");
 }

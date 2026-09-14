@@ -1,0 +1,15 @@
+# Run from the repository root: node dist/cli.js --config examples/codex-eval.yaml
+root: ./examples/runtime-skill
+workspace: ./agent-skills-workspace
+runtime: codex
+judgeRuntime: none
+runtimeOptions:
+  allowWrites: true
+  timeoutMs: 120000
+baseline: true
+concurrency: 1
+layout: iteration
+strict: true
+report:
+  enabled: true
+  title: Codex runtime skill evaluation
