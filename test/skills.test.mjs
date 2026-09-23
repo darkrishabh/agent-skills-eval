@@ -13,7 +13,12 @@ import {
   loadConfigFile,
   loadSkill,
   runEval,
+  runToolAssertions,
 } from "../dist/index.js";
+
+function toolCall(name, parsedArguments) {
+  return { type: "function", function: { name, arguments: JSON.stringify(parsedArguments) }, parsedArguments };
+}
 
 function tempRoot() {
   return mkdtempSync(path.join(tmpdir(), "agent-skills-eval-"));
@@ -433,4 +438,34 @@ test("jsonlReporter emits machine-readable event logs", async () => {
   assert.equal(event.type, "suite-start");
   assert.equal(event.skill, "demo");
   assert.match(event.ts, /^\d{4}-\d{2}-\d{2}T/);
+});
+
+test("tool-arg-equals treats nested object key order as equal", () => {
+  const calls = [toolCall("search", { query: "x", options: { limit: 10, sort: "asc" } })];
+  const results = runToolAssertions(calls, [
+    // Same values, keys in the opposite order — should still PASS.
+    { type: "tool-arg-equals", name: "search", path: "options", value: { sort: "asc", limit: 10 } },
+  ]);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].passed, true, results[0].evidence);
+});
+
+test("tool-arg-equals keeps array order significant", () => {
+  const calls = [toolCall("search", { tags: ["a", "b"] })];
+  const reordered = runToolAssertions(calls, [
+    { type: "tool-arg-equals", name: "search", path: "tags", value: ["b", "a"] },
+  ]);
+  assert.equal(reordered[0].passed, false);
+  const same = runToolAssertions(calls, [
+    { type: "tool-arg-equals", name: "search", path: "tags", value: ["a", "b"] },
+  ]);
+  assert.equal(same[0].passed, true, same[0].evidence);
+});
+
+test("tool-arg-equals still fails on genuinely different nested values", () => {
+  const calls = [toolCall("search", { options: { limit: 10 } })];
+  const results = runToolAssertions(calls, [
+    { type: "tool-arg-equals", name: "search", path: "options", value: { limit: 20 } },
+  ]);
+  assert.equal(results[0].passed, false);
 });
