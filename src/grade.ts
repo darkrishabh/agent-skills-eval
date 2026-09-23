@@ -189,12 +189,33 @@ function getByPath(root: unknown, path: string): unknown {
   return cur;
 }
 
+// Structural equality: object key order is not significant, but array order is.
+// Primitives compare by ===. Falls through nested objects/arrays recursively so
+// that reordered keys (e.g. {limit,sort} vs {sort,limit}) grade as equal while
+// reordered array elements still differ.
 function deepEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (typeof a !== typeof b) return false;
-  if (a === null || b === null) return false;
-  if (typeof a !== "object") return false;
-  return JSON.stringify(a) === JSON.stringify(b);
+  if (typeof a !== "object" || a === null || b === null) return false;
+
+  const aIsArray = Array.isArray(a);
+  if (aIsArray !== Array.isArray(b)) return false;
+
+  if (aIsArray) {
+    const aArr = a as unknown[];
+    const bArr = b as unknown[];
+    if (aArr.length !== bArr.length) return false;
+    return aArr.every((item, i) => deepEqual(item, bArr[i]));
+  }
+
+  const aObj = a as Record<string, unknown>;
+  const bObj = b as Record<string, unknown>;
+  const aKeys = Object.keys(aObj);
+  const bKeys = Object.keys(bObj);
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every(
+    (key) => Object.prototype.hasOwnProperty.call(bObj, key) && deepEqual(aObj[key], bObj[key])
+  );
 }
 
 function describeToolAssertion(a: ToolAssertion): string {
