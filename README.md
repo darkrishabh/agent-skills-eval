@@ -156,6 +156,38 @@ OPENAI_API_KEY=... npx agent-skills-eval --config agent-skills-eval.yaml
 
 CLI flags always override config values.
 
+### Options reference
+
+Every option below can be set in the config file or as a CLI flag (the flag is
+the kebab-cased key, e.g. `baseUrl` → `--base-url`, `logging.format` →
+`--log-format`). CLI flags always win over the config file.
+
+| Option | Type | Default | What it does |
+|---|---|---|---|
+| `root` | string | `.` | Directory scanned recursively for `SKILL.md` files. Positional CLI arg. |
+| `workspace` | string | `./agent-skills-workspace` | Output directory for run artifacts (per-eval outputs, `grading.json`, `benchmark.json`, `meta.json`). |
+| `baseline` | boolean | `false` | When `true`, runs each eval both `with_skill` and `without_skill` so the report shows the lift the skill provides. When `false`, only `with_skill` runs. |
+| `target` | string | `gpt-4o-mini` | Model under evaluation — the one the skill is meant to help. |
+| `judge` | string | value of `target` | Model that grades the rubric assertions. Set it to a stronger model than `target` for more reliable grading. |
+| `baseUrl` | string | `OPENAI_BASE_URL` env, else **required** | Base URL of the OpenAI-compatible API for both target and judge. |
+| `apiKeyEnv` | string | `OPENAI_API_KEY` | Name of the environment variable holding the API key (the key itself is never written to config). |
+| `include` | string[] | all discovered skills | Glob(s) matched against each skill's path; only matching skills run. Repeatable `--include` on the CLI. |
+| `exclude` | string[] | none | Glob(s) matched against each skill's path; matching skills are skipped. Applied after `include`. Repeatable `--exclude`. |
+| `concurrency` | number | `4` | Number of eval cases run in parallel. Must be a positive integer. |
+| `strict` | boolean | `false` | Validate each `SKILL.md` against the agentskills.io schema before running; fail on violations. |
+| `layout` | `flat` \| `iteration` | `iteration` | `iteration` writes each run into a fresh `iteration-N/` directory (history preserved); `flat` writes directly into the workspace, overwriting the previous run. |
+| `report` | boolean \| object | `true` | `true`/`false` toggles HTML report generation. As an object, takes `enabled`, `title`, and `output`. |
+| `report.enabled` | boolean | `true` | Whether to generate the static HTML report. |
+| `report.title` | string | none | Title shown at the top of the HTML report. |
+| `report.output` | string | `<workspace>/report` | Directory the HTML report is written to. |
+| `logging.format` | `pretty` \| `jsonl` \| `silent` | `pretty` | `pretty` prints the rich console reporter; `jsonl` emits machine-readable events; `silent` suppresses progress output (the final JSON result still goes to stdout). |
+| `logging.verbose` | boolean | `false` | Print full prompts, outputs, and judge prompts instead of snippets (`pretty` format only). |
+| `logging.color` | boolean \| `auto` | `auto` | ANSI color: `auto` enables it on a TTY, `true`/`false` force it. |
+| `logging.snippetLength` | number | `200` | Max length of inline prompt/output snippets in non-verbose `pretty` output. |
+| `logging.file` | string | none | Path to write JSONL event logs to (used with `--log-file`). |
+| `targetParams` | object | none | Inference params (e.g. `temperature`) passed through to the target model. |
+| `judgeParams` | object | none | Inference params passed through to the judge model. |
+
 ## SDK
 
 For programmatic use — CI pipelines, custom dashboards, multi-skill rollups — drive the evaluator from TypeScript:
