@@ -9,7 +9,8 @@ All notable changes to this project are documented here.
 - Give baseline runs the same evaluation fixtures as skill-enabled runs.
 - Upgrade js-yaml to the patched 4.3.2 line while retaining YAML merge-key behavior.
 - Document configuration options, artifact fields, and MCP/identity integration boundaries.
-
+- Simplify slug trimming to remove the expression flagged by CodeQL.
+- Prepare an advanced CodeQL workflow for fork pull requests, with explicit activation steps.
 - Add eval ID filtering through `--eval-id`, `evalIds` config, and the SDK.
 
 ## 0.1.1
