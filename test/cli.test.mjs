@@ -40,6 +40,13 @@ function writeSkill(root) {
           files: ["evals/files/revenue.csv"],
           assertions: ["The output names February.", "The output includes 18."],
         },
+        {
+          id: "bottom",
+          name: "bottom month",
+          prompt: "Find the bottom revenue month.",
+          files: ["evals/files/revenue.csv"],
+          assertions: ["The output names January.", "The output includes 12."],
+        },
       ],
     }),
   );
@@ -135,6 +142,56 @@ test("CLI runs from YAML config and writes JSONL logs plus report artifacts", as
     assert.equal(events[0].type, "suite-start");
     assert.ok(events.some((event) => event.type === "eval-end" && event.mode === "with_skill"));
     assert.ok(mock.requests.length >= 4, "baseline run should call target and judge for both modes");
+  } finally {
+    await mock.close();
+  }
+});
+
+test("CLI filters eval cases by id", async () => {
+  const root = tempRoot();
+  writeSkill(root);
+  const workspace = path.join(root, "workspace");
+  const mock = await startOpenAiMock();
+
+  try {
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      [
+        "dist/cli.js",
+        root,
+        "--workspace",
+        workspace,
+        "--target",
+        "mock-target",
+        "--judge",
+        "mock-judge",
+        "--base-url",
+        mock.url,
+        "--api-key-env",
+        "MOCK_OPENAI_KEY",
+        "--layout",
+        "iteration",
+        "--strict",
+        "--no-report",
+        "--log-format",
+        "silent",
+        "--eval-id",
+        "bottom",
+      ],
+      {
+        cwd: path.resolve("."),
+        env: { ...process.env, MOCK_OPENAI_KEY: "test-key" },
+      },
+    );
+
+    const result = JSON.parse(stdout);
+    assert.equal(result.failed, 0);
+    assert.equal(result.skills[0].evals, 1);
+    assert.ok(existsSync(path.join(workspace, "iteration-1", "eval-bottom-month", "with_skill", "grading.json")));
+    assert.equal(existsSync(path.join(workspace, "iteration-1", "eval-top-month", "with_skill", "grading.json")), false);
+    assert.equal(mock.requests.length, 2, "one selected eval should call target and judge once");
+    assert.ok(JSON.stringify(mock.requests).includes("Find the bottom revenue month."));
+    assert.equal(JSON.stringify(mock.requests).includes("Find the top revenue month."), false);
   } finally {
     await mock.close();
   }

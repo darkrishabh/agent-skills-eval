@@ -134,6 +134,8 @@ include:
   - "skills/**"
 exclude:
   - "**/draft-*"
+evalIds:
+  - "basic"
 concurrency: 4
 layout: iteration
 strict: true
@@ -158,9 +160,11 @@ CLI flags always override config values.
 
 ### Options reference
 
-Every option below can be set in the config file or as a CLI flag (the flag is
-the kebab-cased key, e.g. `baseUrl` → `--base-url`, `logging.format` →
-`--log-format`). CLI flags always win over the config file.
+These are configuration-file options and CLI defaults. See `--help` for the
+available CLI flags; `targetParams`, `judgeParams`, and `logging.snippetLength`
+are config-only. Logging flags use `--log-format`, `--log-file`, `--verbose`,
+and `--no-color`; report flags use `--report`, `--no-report`, `--report-title`,
+and `--report-output`. Supplied CLI flags override matching config values.
 
 | Option | Type | Default | What it does |
 |---|---|---|---|
@@ -173,13 +177,14 @@ the kebab-cased key, e.g. `baseUrl` → `--base-url`, `logging.format` →
 | `apiKeyEnv` | string | `OPENAI_API_KEY` | Name of the environment variable holding the API key (the key itself is never written to config). |
 | `include` | string[] | all discovered skills | Glob(s) matched against each skill's path; only matching skills run. Repeatable `--include` on the CLI. |
 | `exclude` | string[] | none | Glob(s) matched against each skill's path; matching skills are skipped. Applied after `include`. Repeatable `--exclude`. |
+| `evalIds` | string[] | all cases | Select IDs within every selected skill. Repeat `--eval-id` on the CLI; SDK also accepts numeric IDs. Missing IDs fail the run. |
 | `concurrency` | number | `4` | Number of eval cases run in parallel. Must be a positive integer. |
 | `strict` | boolean | `false` | Validate each `SKILL.md` against the agentskills.io schema before running; fail on violations. |
 | `layout` | `flat` \| `iteration` | `iteration` | `iteration` writes each run into a fresh `iteration-N/` directory (history preserved); `flat` writes directly into the workspace, overwriting the previous run. |
 | `report` | boolean \| object | `true` | `true`/`false` toggles HTML report generation. As an object, takes `enabled`, `title`, and `output`. |
 | `report.enabled` | boolean | `true` | Whether to generate the static HTML report. |
 | `report.title` | string | none | Title shown at the top of the HTML report. |
-| `report.output` | string | `<workspace>/report` | Directory the HTML report is written to. |
+| `report.output` | string | `<run workspace>/report` | Directory the HTML report is written to. |
 | `logging.format` | `pretty` \| `jsonl` \| `silent` | `pretty` | `pretty` prints the rich console reporter; `jsonl` emits machine-readable events; `silent` suppresses progress output (the final JSON result still goes to stdout). |
 | `logging.verbose` | boolean | `false` | Print full prompts, outputs, and judge prompts instead of snippets (`pretty` format only). |
 | `logging.color` | boolean \| `auto` | `auto` | ANSI color: `auto` enables it on a TTY, `true`/`false` force it. |
@@ -187,6 +192,12 @@ the kebab-cased key, e.g. `baseUrl` → `--base-url`, `logging.format` →
 | `logging.file` | string | none | Path to write JSONL event logs to (used with `--log-file`). |
 | `targetParams` | object | none | Inference params (e.g. `temperature`) passed through to the target model. |
 | `judgeParams` | object | none | Inference params passed through to the judge model. |
+
+To iterate on one case, pass `--eval-id` one or more times:
+
+```bash
+OPENAI_API_KEY=... npx agent-skills-eval --config agent-skills-eval.yaml --eval-id basic
+```
 
 ## SDK
 
@@ -332,6 +343,7 @@ npx agent-skills-eval [root] \
   --api-key-env OPENAI_API_KEY \
   --include "skills/**" \
   --exclude "**/draft-*" \
+  --eval-id basic \
   --concurrency 4 \
   --layout iteration \
   --strict \
