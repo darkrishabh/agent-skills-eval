@@ -135,6 +135,9 @@ test("runEval supports complete-only provider fallback and writes artifacts", as
     iteration: 1,
   });
   assert.ok(target.prompts[0].includes("---USER REQUEST---"));
+  assert.ok(target.prompts[0].includes("<skill name="));
+  assert.ok(target.prompts[1].includes('<file path="evals/files/data.csv"'));
+  assert.equal(target.prompts[1].includes("<skill name="), false);
   assert.ok(target.prompts[0].includes("<file path=\"evals/files/data.csv\""));
   assert.ok(existsSync(path.join(workspace, "iteration-1", result.slug, "with_skill", "grading.json")));
   assert.ok(existsSync(path.join(workspace, "iteration-1", result.slug, "without_skill", "timing.json")));
@@ -557,4 +560,12 @@ test("tool-arg-equals still fails on genuinely different nested values", () => {
     { type: "tool-arg-equals", name: "search", path: "options", value: { limit: 20 } },
   ]);
   assert.equal(results[0].passed, false);
+});
+
+
+test("YAML configuration preserves merge-key defaults", () => {
+  const root = tempRoot();
+  const configPath = path.join(root, "merged.yaml");
+  writeFileSync(configPath, "defaults: &defaults\n  temperature: 0\ntargetParams:\n  <<: *defaults\n  max_tokens: 123\n");
+  assert.deepEqual(loadConfigFile(configPath).targetParams, { temperature: 0, max_tokens: 123 });
 });

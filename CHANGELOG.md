@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- Identify outgoing OpenAI-compatible requests with the installed package and Node versions.
+- Compare nested tool arguments without treating object-key order as significant.
+- Give baseline runs the same evaluation fixtures as skill-enabled runs.
+- Upgrade js-yaml to the patched 4.3.2 line while retaining YAML merge-key behavior.
+- Document configuration options, artifact fields, and MCP/identity integration boundaries.
+
 - Add eval ID filtering through `--eval-id`, `evalIds` config, and the SDK.
 
 ## 0.1.1

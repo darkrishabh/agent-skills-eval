@@ -180,7 +180,7 @@ and `--report-output`. Supplied CLI flags override matching config values.
 | `evalIds` | string[] | all cases | Select IDs within every selected skill. Repeat `--eval-id` on the CLI; SDK also accepts numeric IDs. Missing IDs fail the run. |
 | `concurrency` | number | `4` | Number of eval cases run in parallel. Must be a positive integer. |
 | `strict` | boolean | `false` | Validate each `SKILL.md` against the agentskills.io schema before running; fail on violations. |
-| `layout` | `flat` \| `iteration` | `iteration` | `iteration` writes each run into a fresh `iteration-N/` directory (history preserved); `flat` writes directly into the workspace, overwriting the previous run. |
+| `layout` | `flat` \| `iteration` | `iteration` | `iteration` allocates `iteration-N/` locally; with `CI=true`, it resets `iteration-1/`; `flat` writes directly into the workspace, overwriting the previous run. |
 | `report` | boolean \| object | `true` | `true`/`false` toggles HTML report generation. As an object, takes `enabled`, `title`, and `output`. |
 | `report.enabled` | boolean | `true` | Whether to generate the static HTML report. |
 | `report.title` | string | none | Title shown at the top of the HTML report. |
@@ -414,3 +414,29 @@ MIT. See [LICENSE](LICENSE).
 Built for the [Agent Skills](https://agentskills.io) ecosystem.
 
 </div>
+
+
+## Integration boundaries
+
+See [the artifact contract](docs/artifact-contract.md) for output layouts, field
+semantics, adapter guidance, and provenance limits. External result-format
+adapters can consume these files without adding dependencies to this runner.
+
+The built-in OpenAI-compatible provider makes a single chat-completion request
+per target run (plus retries). Function tool definitions let you grade the
+returned tool-call requests; the provider does not connect to MCP servers,
+execute tools, or run a multi-turn agent loop. To evaluate a skill that needs
+real MCP execution today, implement a custom `Provider` that owns the tool loop
+and returns actual output and captured `toolCalls` for grading. Declaring a
+function tool is not evidence that its operation executed successfully.
+
+This runner evaluates behavior supplied by a provider; it does not authenticate
+agent identity, detect clones, or attest to an untampered runtime. Integrations
+that need identity verification must perform it before starting the evaluation
+and retain the evidence separately. Passing scores do not establish identity
+or regulatory compliance.
+
+Outgoing requests from `OpenAICompatibleProvider` carry
+`User-Agent: agent-skills-eval/<package-version> (+https://github.com/darkrishabh/agent-skills-eval; node/<node-version>)`.
+This applies to target and judge calls and retries. SDK callers can override it
+through `extraHeaders` using any capitalization of `User-Agent`.
