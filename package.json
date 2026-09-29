@@ -33,6 +33,10 @@
     "./reporters": {
       "import": "./dist/jsonl-reporter.js",
       "types": "./dist/jsonl-reporter.d.ts"
+    },
+    "./experimental/runtime": {
+      "types": "./dist/agent-runtime.d.ts",
+      "import": "./dist/agent-runtime.js"
     }
   },
   "files": [
@@ -44,7 +48,8 @@
     "CODE_OF_CONDUCT.md",
     "SECURITY.md",
     "LICENSE",
-    "docs/artifact-contract.md"
+    "docs/artifact-contract.md",
+    "docs/runtime-foundation.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",

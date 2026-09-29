@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- Add an experimental native-runtime lifecycle with isolated task copies, pre-verification snapshots, and separate verifier workspaces. Native adapters and CLI integration remain pending.
+
 - Identify outgoing OpenAI-compatible requests with the installed package and Node versions.
 - Compare nested tool arguments without treating object-key order as significant.
 - Give baseline runs the same evaluation fixtures as skill-enabled runs.
