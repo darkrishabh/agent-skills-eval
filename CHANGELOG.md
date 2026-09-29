@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+- Add eval ID filtering through `--eval-id`, `evalIds` config, and the SDK.
+
 ## 0.1.1
 
 - Improve npm package discoverability metadata.

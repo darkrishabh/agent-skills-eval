@@ -24,6 +24,8 @@ export interface EvaluateSkillsArgs {
   judge: { model: string; provider: Provider };
   include?: string[];
   exclude?: string[];
+  /** Restrict each selected skill to eval cases whose `id` matches one of these values. */
+  evalIds?: Array<string | number>;
   /**
    * Caller-level inference param defaults applied to every case's target
    * model. Lowest precedence — a skill's `defaults.target.params` and a
@@ -118,6 +120,20 @@ interface Task {
   index: number;
 }
 
+function filterEvalsById(skill: Skill, evalIds: Array<string | number> | undefined): void {
+  if (!evalIds || evalIds.length === 0) return;
+
+  const wanted = [...new Set(evalIds.map((id) => String(id)))];
+  const wantedSet = new Set(wanted);
+  const filtered = skill.evals.filter((evalCase) => evalCase.id !== undefined && wantedSet.has(String(evalCase.id)));
+  const found = new Set(filtered.map((evalCase) => String(evalCase.id)));
+  const missing = wanted.filter((id) => !found.has(id));
+  if (missing.length > 0) {
+    throw new Error(`missing eval ids for skill ${skill.name}: ${missing.join(", ")}`);
+  }
+  skill.evals = filtered;
+}
+
 /**
  * Tiny bounded-concurrency worker pool. Each worker grabs the next item off a
  * shared FIFO queue and runs `work` on it; resolves once the queue is drained.
@@ -161,6 +177,7 @@ export async function evaluateSkills(args: EvaluateSkillsArgs): Promise<Evaluate
   for (const ref of refs) {
     args.onLog?.(`skill ${ref.name}: loading ${ref.relPath}`);
     const skill = loadSkill(ref.dir, { strict: args.strict });
+    filterEvalsById(skill, args.evalIds);
     const slug = slugify(skill.name);
     const skillDir =
       workspaceLayout === "flat"

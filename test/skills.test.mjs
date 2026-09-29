@@ -154,6 +154,92 @@ test("evaluateSkills produces spec workspace layout and summary", async () => {
   assert.ok(existsSync(path.join(workspace, "csv-analyzer", "eval-top-months", "with_skill", "outputs")));
 });
 
+test("evaluateSkills filters eval cases by string id", async () => {
+  const root = tempRoot();
+  const name = "filtered-skill";
+  const dir = path.join(root, name);
+  mkdirSync(path.join(dir, "evals"), { recursive: true });
+  writeFileSync(path.join(dir, "SKILL.md"), `---\nname: ${name}\ndescription: Filter eval cases.\n---\n\nBody.\n`);
+  writeFileSync(path.join(dir, "evals", "evals.json"), JSON.stringify({
+    skill_name: name,
+    evals: [
+      { id: "case-a", name: "case a", prompt: "Run case A.", assertions: ["mentions A"] },
+      { id: "case-b", name: "case b", prompt: "Run case B.", assertions: ["mentions B"] },
+    ],
+  }));
+
+  const target = provider("Case B output");
+  const workspace = path.join(root, "bench-workspace");
+  const result = await evaluateSkills({
+    root,
+    workspace,
+    evalIds: ["case-b"],
+    report: false,
+    target: { model: "target", provider: target },
+    judge: { model: "judge", provider: judgeProvider(true) },
+  });
+
+  assert.equal(result.skills[0].evals, 1);
+  assert.equal(target.prompts.length, 1);
+  assert.ok(target.prompts[0].includes("Run case B."));
+  assert.ok(existsSync(path.join(workspace, name, "eval-case-b", "with_skill", "grading.json")));
+  assert.equal(existsSync(path.join(workspace, name, "eval-case-a", "with_skill", "grading.json")), false);
+});
+
+test("evaluateSkills matches numeric eval ids from string filters", async () => {
+  const root = tempRoot();
+  const name = "numeric-filter";
+  const dir = path.join(root, name);
+  mkdirSync(path.join(dir, "evals"), { recursive: true });
+  writeFileSync(path.join(dir, "SKILL.md"), `---\nname: ${name}\ndescription: Filter numeric ids.\n---\n\nBody.\n`);
+  writeFileSync(path.join(dir, "evals", "evals.json"), JSON.stringify({
+    skill_name: name,
+    evals: [
+      { id: 1, name: "numeric one", prompt: "Run numeric case one.", assertions: ["mentions one"] },
+      { id: 2, name: "numeric two", prompt: "Run numeric case two.", assertions: ["mentions two"] },
+    ],
+  }));
+
+  const target = provider("Case one output");
+  await evaluateSkills({
+    root,
+    workspace: path.join(root, "bench-workspace"),
+    evalIds: ["1"],
+    report: false,
+    target: { model: "target", provider: target },
+    judge: { model: "judge", provider: judgeProvider(true) },
+  });
+
+  assert.equal(target.prompts.length, 1);
+  assert.ok(target.prompts[0].includes("Run numeric case one."));
+});
+
+test("evaluateSkills fails when eval id filters are missing", async () => {
+  const root = tempRoot();
+  const name = "partial-filter";
+  const dir = path.join(root, name);
+  mkdirSync(path.join(dir, "evals"), { recursive: true });
+  writeFileSync(path.join(dir, "SKILL.md"), `---\nname: ${name}\ndescription: Missing eval ids.\n---\n\nBody.\n`);
+  writeFileSync(path.join(dir, "evals", "evals.json"), JSON.stringify({
+    skill_name: name,
+    evals: [
+      { id: "present", name: "present", prompt: "Run present.", assertions: ["mentions present"] },
+    ],
+  }));
+
+  await assert.rejects(
+    () => evaluateSkills({
+      root,
+      workspace: path.join(root, "bench-workspace"),
+      evalIds: ["present", "missing"],
+      report: false,
+      target: { model: "target", provider: provider("output") },
+      judge: { model: "judge", provider: judgeProvider(true) },
+    }),
+    /missing eval ids for skill partial-filter: missing/,
+  );
+});
+
 test("loadSkill normalizes mixed-shape assertions to strings", () => {
   const root = tempRoot();
   const name = "mixed-assertions";
@@ -380,6 +466,8 @@ test("loadConfigFile accepts YAML config for evaluator options", () => {
     "apiKeyEnv: TEST_API_KEY",
     "include:",
     "  - skills/**",
+    "evalIds:",
+    "  - top-month",
     "concurrency: 2",
     "layout: iteration",
     "strict: true",
@@ -400,6 +488,7 @@ test("loadConfigFile accepts YAML config for evaluator options", () => {
   assert.equal(config.target, "gpt-4o-mini");
   assert.equal(config.judge, "gpt-4.1-mini");
   assert.deepEqual(config.include, ["skills/**"]);
+  assert.deepEqual(config.evalIds, ["top-month"]);
   assert.equal(config.concurrency, 2);
   assert.equal(config.layout, "iteration");
   assert.equal(config.strict, true);
