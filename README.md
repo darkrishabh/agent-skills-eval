@@ -440,3 +440,9 @@ Outgoing requests from `OpenAICompatibleProvider` carry
 `User-Agent: agent-skills-eval/<package-version> (+https://github.com/darkrishabh/agent-skills-eval; node/<node-version>)`.
 This applies to target and judge calls and retries. SDK callers can override it
 through `extraHeaders` using any capitalization of `User-Agent`.
+
+
+The proposed native-agent lifecycle is available for contributor review through
+[the experimental runtime foundation](docs/runtime-foundation.md). It is a
+separate SDK entry point; the native adapters and CLI integration are still under
+development with the authors of PRs #25 and #35.
