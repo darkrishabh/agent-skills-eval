@@ -13,6 +13,7 @@ import {
   loadConfigFile,
   loadSkill,
   runEval,
+  runToolAssertions,
 } from "../dist/index.js";
 
 function tempRoot() {
@@ -131,6 +132,9 @@ test("runEval supports complete-only provider fallback and writes artifacts", as
   });
   assert.ok(target.prompts[0].includes("---USER REQUEST---"));
   assert.ok(target.prompts[0].includes("<file path=\"evals/files/data.csv\""));
+  assert.ok(target.prompts[0].includes("<skill name="));
+  assert.ok(target.prompts[1].includes("<file path=\"evals/files/data.csv\""));
+  assert.equal(target.prompts[1].includes("<skill name="), false);
   assert.ok(existsSync(path.join(workspace, "iteration-1", result.slug, "with_skill", "grading.json")));
   assert.ok(existsSync(path.join(workspace, "iteration-1", result.slug, "without_skill", "timing.json")));
 });
@@ -182,6 +186,57 @@ test("loadSkill normalizes mixed-shape assertions to strings", () => {
     "object form value",
     "object form criterion",
   ]);
+});
+
+test("loadSkill parses tool_assertions and runToolAssertions grades them locally", () => {
+  const root = tempRoot();
+  const name = "tool-assert-skill";
+  const dir = path.join(root, name);
+  mkdirSync(path.join(dir, "evals"), { recursive: true });
+  writeFileSync(path.join(dir, "SKILL.md"), `---\nname: ${name}\ndescription: Tool assertion test.\n---\n\nBody.\n`);
+  writeFileSync(path.join(dir, "evals", "evals.json"), JSON.stringify({
+    skill_name: name,
+    defaults: {
+      tools: [{
+        type: "function",
+        function: {
+          name: "compute_rushship_total",
+          parameters: { type: "object", properties: { total: { type: "number" } } },
+        },
+      }],
+    },
+    evals: [{
+      id: 1,
+      name: "tool-case",
+      prompt: "Compute the total.",
+      tool_assertions: [
+        { type: "tool-called", name: "compute_rushship_total" },
+        { type: "tool-arg-equals", name: "compute_rushship_total", path: "total", value: 45.75 },
+        { type: "tool-not-called", name: "refund" },
+      ],
+    }],
+  }));
+  const skill = loadSkill(dir);
+  assert.equal(skill.defaults?.tools?.[0].function.name, "compute_rushship_total");
+  assert.deepEqual(skill.evals[0].tool_assertions, [
+    { type: "tool-called", name: "compute_rushship_total", description: undefined },
+    { type: "tool-arg-equals", name: "compute_rushship_total", path: "total", value: 45.75, description: undefined },
+    { type: "tool-not-called", name: "refund", description: undefined },
+  ]);
+
+  const passed = runToolAssertions(
+    [{
+      type: "function",
+      function: { name: "compute_rushship_total", arguments: "{\"total\":45.75}" },
+      parsedArguments: { total: 45.75 },
+    }],
+    skill.evals[0].tool_assertions
+  );
+  assert.equal(passed.every((r) => r.passed), true);
+
+  const missed = runToolAssertions([], skill.evals[0].tool_assertions);
+  assert.equal(missed.filter((r) => !r.passed).length, 2);
+  assert.equal(missed.find((r) => r.text.includes("refund"))?.passed, true);
 });
 
 test("loadSkill throws with path-aware message on malformed assertion entry", () => {
