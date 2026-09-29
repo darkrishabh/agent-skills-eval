@@ -104,7 +104,9 @@ export function attachedFileXml(tag: string, file: AttachedFile): string {
 }
 
 export function slugify(value: string, fallback = "item"): string {
-  const slug = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64);
+  // Normalization collapses each separator run to one dash, so trimming never
+  // needs a quantified, end-anchored expression that can backtrack repeatedly.
+  const slug = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 64);
   return slug || fallback;
 }
 
