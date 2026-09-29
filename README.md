@@ -158,6 +158,41 @@ OPENAI_API_KEY=... npx agent-skills-eval --config agent-skills-eval.yaml
 
 CLI flags always override config values.
 
+### Options reference
+
+These are configuration-file options and CLI defaults. See `--help` for the
+available CLI flags; `targetParams`, `judgeParams`, and `logging.snippetLength`
+are config-only. Logging flags use `--log-format`, `--log-file`, `--verbose`,
+and `--no-color`; report flags use `--report`, `--no-report`, `--report-title`,
+and `--report-output`. Supplied CLI flags override matching config values.
+
+| Option | Type | Default | What it does |
+|---|---|---|---|
+| `root` | string | `.` | Directory scanned recursively for `SKILL.md` files. Positional CLI arg. |
+| `workspace` | string | `./agent-skills-workspace` | Output directory for run artifacts (per-eval outputs, `grading.json`, `benchmark.json`, `meta.json`). |
+| `baseline` | boolean | `false` | When `true`, runs each eval both `with_skill` and `without_skill` so the report shows the lift the skill provides. When `false`, only `with_skill` runs. |
+| `target` | string | `gpt-4o-mini` | Model under evaluation — the one the skill is meant to help. |
+| `judge` | string | value of `target` | Model that grades the rubric assertions. Set it to a stronger model than `target` for more reliable grading. |
+| `baseUrl` | string | `OPENAI_BASE_URL` env, else **required** | Base URL of the OpenAI-compatible API for both target and judge. |
+| `apiKeyEnv` | string | `OPENAI_API_KEY` | Name of the environment variable holding the API key (the key itself is never written to config). |
+| `include` | string[] | all discovered skills | Glob(s) matched against each skill's path; only matching skills run. Repeatable `--include` on the CLI. |
+| `exclude` | string[] | none | Glob(s) matched against each skill's path; matching skills are skipped. Applied after `include`. Repeatable `--exclude`. |
+| `evalIds` | string[] | all cases | Select IDs within every selected skill. Repeat `--eval-id` on the CLI; SDK also accepts numeric IDs. Missing IDs fail the run. |
+| `concurrency` | number | `4` | Number of eval cases run in parallel. Must be a positive integer. |
+| `strict` | boolean | `false` | Validate each `SKILL.md` against the agentskills.io schema before running; fail on violations. |
+| `layout` | `flat` \| `iteration` | `iteration` | `iteration` allocates `iteration-N/` locally; with `CI=true`, it resets `iteration-1/`; `flat` writes directly into the workspace, overwriting the previous run. |
+| `report` | boolean \| object | `true` | `true`/`false` toggles HTML report generation. As an object, takes `enabled`, `title`, and `output`. |
+| `report.enabled` | boolean | `true` | Whether to generate the static HTML report. |
+| `report.title` | string | none | Title shown at the top of the HTML report. |
+| `report.output` | string | `<run workspace>/report` | Directory the HTML report is written to. |
+| `logging.format` | `pretty` \| `jsonl` \| `silent` | `pretty` | `pretty` prints the rich console reporter; `jsonl` emits machine-readable events; `silent` suppresses progress output (the final JSON result still goes to stdout). |
+| `logging.verbose` | boolean | `false` | Print full prompts, outputs, and judge prompts instead of snippets (`pretty` format only). |
+| `logging.color` | boolean \| `auto` | `auto` | ANSI color: `auto` enables it on a TTY, `true`/`false` force it. |
+| `logging.snippetLength` | number | `200` | Max length of inline prompt/output snippets in non-verbose `pretty` output. |
+| `logging.file` | string | none | Path to write JSONL event logs to (used with `--log-file`). |
+| `targetParams` | object | none | Inference params (e.g. `temperature`) passed through to the target model. |
+| `judgeParams` | object | none | Inference params passed through to the judge model. |
+
 To iterate on one case, pass `--eval-id` one or more times:
 
 ```bash
@@ -379,3 +414,29 @@ MIT. See [LICENSE](LICENSE).
 Built for the [Agent Skills](https://agentskills.io) ecosystem.
 
 </div>
+
+
+## Integration boundaries
+
+See [the artifact contract](docs/artifact-contract.md) for output layouts, field
+semantics, adapter guidance, and provenance limits. External result-format
+adapters can consume these files without adding dependencies to this runner.
+
+The built-in OpenAI-compatible provider makes a single chat-completion request
+per target run (plus retries). Function tool definitions let you grade the
+returned tool-call requests; the provider does not connect to MCP servers,
+execute tools, or run a multi-turn agent loop. To evaluate a skill that needs
+real MCP execution today, implement a custom `Provider` that owns the tool loop
+and returns actual output and captured `toolCalls` for grading. Declaring a
+function tool is not evidence that its operation executed successfully.
+
+This runner evaluates behavior supplied by a provider; it does not authenticate
+agent identity, detect clones, or attest to an untampered runtime. Integrations
+that need identity verification must perform it before starting the evaluation
+and retain the evidence separately. Passing scores do not establish identity
+or regulatory compliance.
+
+Outgoing requests from `OpenAICompatibleProvider` carry
+`User-Agent: agent-skills-eval/<package-version> (+https://github.com/darkrishabh/agent-skills-eval; node/<node-version>)`.
+This applies to target and judge calls and retries. SDK callers can override it
+through `extraHeaders` using any capitalization of `User-Agent`.

@@ -13,7 +13,12 @@ import {
   loadConfigFile,
   loadSkill,
   runEval,
+  runToolAssertions,
 } from "../dist/index.js";
+
+function toolCall(name, parsedArguments) {
+  return { type: "function", function: { name, arguments: JSON.stringify(parsedArguments) }, parsedArguments };
+}
 
 function tempRoot() {
   return mkdtempSync(path.join(tmpdir(), "agent-skills-eval-"));
@@ -130,7 +135,13 @@ test("runEval supports complete-only provider fallback and writes artifacts", as
     iteration: 1,
   });
   assert.ok(target.prompts[0].includes("---USER REQUEST---"));
+  assert.ok(target.prompts[0].includes("<skill name="));
+  assert.ok(target.prompts[1].includes('<file path="evals/files/data.csv"'));
+  assert.equal(target.prompts[1].includes("<skill name="), false);
   assert.ok(target.prompts[0].includes("<file path=\"evals/files/data.csv\""));
+  assert.ok(target.prompts[0].includes("<skill name="));
+  assert.ok(target.prompts[1].includes("<file path=\"evals/files/data.csv\""));
+  assert.equal(target.prompts[1].includes("<skill name="), false);
   assert.ok(existsSync(path.join(workspace, "iteration-1", result.slug, "with_skill", "grading.json")));
   assert.ok(existsSync(path.join(workspace, "iteration-1", result.slug, "without_skill", "timing.json")));
 });
@@ -268,6 +279,57 @@ test("loadSkill normalizes mixed-shape assertions to strings", () => {
     "object form value",
     "object form criterion",
   ]);
+});
+
+test("loadSkill parses tool_assertions and runToolAssertions grades them locally", () => {
+  const root = tempRoot();
+  const name = "tool-assert-skill";
+  const dir = path.join(root, name);
+  mkdirSync(path.join(dir, "evals"), { recursive: true });
+  writeFileSync(path.join(dir, "SKILL.md"), `---\nname: ${name}\ndescription: Tool assertion test.\n---\n\nBody.\n`);
+  writeFileSync(path.join(dir, "evals", "evals.json"), JSON.stringify({
+    skill_name: name,
+    defaults: {
+      tools: [{
+        type: "function",
+        function: {
+          name: "compute_rushship_total",
+          parameters: { type: "object", properties: { total: { type: "number" } } },
+        },
+      }],
+    },
+    evals: [{
+      id: 1,
+      name: "tool-case",
+      prompt: "Compute the total.",
+      tool_assertions: [
+        { type: "tool-called", name: "compute_rushship_total" },
+        { type: "tool-arg-equals", name: "compute_rushship_total", path: "total", value: 45.75 },
+        { type: "tool-not-called", name: "refund" },
+      ],
+    }],
+  }));
+  const skill = loadSkill(dir);
+  assert.equal(skill.defaults?.tools?.[0].function.name, "compute_rushship_total");
+  assert.deepEqual(skill.evals[0].tool_assertions, [
+    { type: "tool-called", name: "compute_rushship_total", description: undefined },
+    { type: "tool-arg-equals", name: "compute_rushship_total", path: "total", value: 45.75, description: undefined },
+    { type: "tool-not-called", name: "refund", description: undefined },
+  ]);
+
+  const passed = runToolAssertions(
+    [{
+      type: "function",
+      function: { name: "compute_rushship_total", arguments: "{\"total\":45.75}" },
+      parsedArguments: { total: 45.75 },
+    }],
+    skill.evals[0].tool_assertions
+  );
+  assert.equal(passed.every((r) => r.passed), true);
+
+  const missed = runToolAssertions([], skill.evals[0].tool_assertions);
+  assert.equal(missed.filter((r) => !r.passed).length, 2);
+  assert.equal(missed.find((r) => r.text.includes("refund"))?.passed, true);
 });
 
 test("loadSkill throws with path-aware message on malformed assertion entry", () => {
@@ -522,4 +584,42 @@ test("jsonlReporter emits machine-readable event logs", async () => {
   assert.equal(event.type, "suite-start");
   assert.equal(event.skill, "demo");
   assert.match(event.ts, /^\d{4}-\d{2}-\d{2}T/);
+});
+
+test("tool-arg-equals treats nested object key order as equal", () => {
+  const calls = [toolCall("search", { query: "x", options: { limit: 10, sort: "asc" } })];
+  const results = runToolAssertions(calls, [
+    // Same values, keys in the opposite order — should still PASS.
+    { type: "tool-arg-equals", name: "search", path: "options", value: { sort: "asc", limit: 10 } },
+  ]);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].passed, true, results[0].evidence);
+});
+
+test("tool-arg-equals keeps array order significant", () => {
+  const calls = [toolCall("search", { tags: ["a", "b"] })];
+  const reordered = runToolAssertions(calls, [
+    { type: "tool-arg-equals", name: "search", path: "tags", value: ["b", "a"] },
+  ]);
+  assert.equal(reordered[0].passed, false);
+  const same = runToolAssertions(calls, [
+    { type: "tool-arg-equals", name: "search", path: "tags", value: ["a", "b"] },
+  ]);
+  assert.equal(same[0].passed, true, same[0].evidence);
+});
+
+test("tool-arg-equals still fails on genuinely different nested values", () => {
+  const calls = [toolCall("search", { options: { limit: 10 } })];
+  const results = runToolAssertions(calls, [
+    { type: "tool-arg-equals", name: "search", path: "options", value: { limit: 20 } },
+  ]);
+  assert.equal(results[0].passed, false);
+});
+
+
+test("YAML configuration preserves merge-key defaults", () => {
+  const root = tempRoot();
+  const configPath = path.join(root, "merged.yaml");
+  writeFileSync(configPath, "defaults: &defaults\n  temperature: 0\ntargetParams:\n  <<: *defaults\n  max_tokens: 123\n");
+  assert.deepEqual(loadConfigFile(configPath).targetParams, { temperature: 0, max_tokens: 123 });
 });

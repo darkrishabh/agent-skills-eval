@@ -188,7 +188,7 @@ export async function runEval(args: RunEvalArgs): Promise<RunEvalResult> {
   for (const mode of args.modes) {
     const runDir = path.join(evalDir, mode);
     const outputDir = path.join(runDir, "outputs");
-    const evalFiles = mode === "with_skill" ? readEvalFiles(args.skill, args.eval) : [];
+    const evalFiles = readEvalFiles(args.skill, args.eval);
     const system = mode === "with_skill" ? renderSkillSystemMessage(args.skill) : undefined;
     const userMessage = args.eval.prompt;
 

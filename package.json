@@ -43,7 +43,8 @@
     "CONTRIBUTING.md",
     "CODE_OF_CONDUCT.md",
     "SECURITY.md",
-    "LICENSE"
+    "LICENSE",
+    "docs/artifact-contract.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -104,7 +105,7 @@
   },
   "dependencies": {
     "commander": "^12.1.0",
-    "js-yaml": "^4.1.1"
+    "js-yaml": "^4.3.2"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

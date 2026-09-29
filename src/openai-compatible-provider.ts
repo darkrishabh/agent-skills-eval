@@ -1,5 +1,9 @@
+import { createRequire } from "node:module";
 import type { Provider, ProviderResult, ToolCall, ToolChoice, ToolDef } from "./provider.js";
 import type { AttachedFile } from "./types.js";
+
+const { version } = createRequire(import.meta.url)("../package.json") as { version: string };
+const USER_AGENT = `agent-skills-eval/${version} (+https://github.com/darkrishabh/agent-skills-eval; node/${process.versions.node})`;
 
 export interface OpenAICompatibleOptions {
   providerName?: string;
@@ -183,6 +187,9 @@ export class OpenAICompatibleProvider implements Provider {
         "Content-Type": "application/json",
         ...this.options.extraHeaders,
       };
+      if (!Object.keys(headers).some((key) => key.toLowerCase() === "user-agent")) {
+        headers["User-Agent"] = USER_AGENT;
+      }
       if (this.apiKey) headers["Authorization"] = `Bearer ${this.apiKey}`;
 
       const data = await this.fetchWithRetry(body, headers);

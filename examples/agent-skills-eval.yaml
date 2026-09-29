@@ -1,10 +1,10 @@
 root: ./examples
 workspace: ./agent-skills-workspace
 baseline: true
-target: gpt-4o-mini
-judge: gpt-4o-mini
-baseUrl: https://api.openai.com/v1
-apiKeyEnv: OPENAI_API_KEY
+target: deepseek/deepseek-v4-flash-0731
+judge: openai/gpt-4o-mini
+baseUrl: https://openrouter.ai/api/v1
+apiKeyEnv: OPENROUTER_API_KEY
 include:
   - "basic-skill"
 concurrency: 2
