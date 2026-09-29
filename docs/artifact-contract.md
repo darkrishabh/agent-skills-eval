@@ -8,7 +8,7 @@ pending runtime-provider PR.
 
 ## Locate a skill's output
 
-Use the SDK result's `skills[].dir` and `skills[].benchmarkPath` when available.
+Use the parent directory of the SDK result's `skills[].benchmarkPath` when available.
 Otherwise discover a skill's `meta.json` alongside `benchmark.json` rather than
 assuming a fixed directory depth:
 

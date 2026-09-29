@@ -43,7 +43,8 @@
     "CONTRIBUTING.md",
     "CODE_OF_CONDUCT.md",
     "SECURITY.md",
-    "LICENSE"
+    "LICENSE",
+    "docs/artifact-contract.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
