@@ -1,0 +1,26 @@
+{
+  "provenance": "Synthetic normalized evidence for text-only evaluation, not a live application result or exact CLI response schema.",
+  "agent_qa_version": "0.2.3",
+  "requested_scope": {
+    "test": "tests/checkout.yaml",
+    "target": "checkout-staging",
+    "revision": "checkout-change-17",
+    "requirement": "Placing one order shows a confirmation containing an order reference."
+  },
+  "run_id": "listing-fixture-run",
+  "observations": [
+    {
+      "command": "agent-qa runs overview listing-fixture-run --json",
+      "exit": 1,
+      "stderr": "Run listing-fixture-run ended before it reached a verdict."
+    },
+    {
+      "command": "agent-qa runs knowledge listing-fixture-run --json",
+      "exit": 1,
+      "stdout": {
+        "kind": "evidence-incomplete",
+        "runId": "listing-fixture-run"
+      }
+    }
+  ]
+}
