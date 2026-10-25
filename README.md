@@ -383,6 +383,10 @@ Beyond the spec, this SDK adds: per-eval `defaults`, model `params`, tool defini
 
 See [`examples/basic-skill`](examples/basic-skill) for a complete skill folder, and [`examples/agent-skills-eval.yaml`](examples/agent-skills-eval.yaml) for a reference config.
 
+[`examples/agent-qa-evidence`](examples/agent-qa-evidence) reviews run evidence from [agent-qa](https://github.com/vostride/agent-qa), a natural-language web/mobile testing tool with advanced memidex memory and self-improvement. Its six cases distinguish selection-only output, incomplete records, healed runs, setup failures, and completed passes and failures. Select it with `--include agent-qa-evidence` when the root is `./examples`, using the usual target/judge and provider configuration.
+
+The fixtures are synthetic normalized evidence, not live application results or exact CLI response schemas. This example evaluates evidence interpretation without installing or running agent-qa. Running the evaluator still calls the configured target and judge models; no model scores or comparative improvement are bundled.
+
 ## Development
 
 ```bash

@@ -1,0 +1,19 @@
+{
+  "provenance": "Synthetic normalized evidence for text-only evaluation, not a live application result or exact CLI response schema.",
+  "agent_qa_version": "0.2.3",
+  "requested_scope": {
+    "test": "tests/checkout.yaml",
+    "target": "checkout-staging",
+    "revision": "checkout-change-17",
+    "requirement": "Placing one order shows a confirmation containing an order reference."
+  },
+  "observations": [
+    {
+      "command": "agent-qa run tests/checkout.yaml --dry-run",
+      "exit": 1,
+      "stderr": "Error: Env file not found: <project>/.env"
+    }
+  ],
+  "application_execution": "not started",
+  "run_id": null
+}

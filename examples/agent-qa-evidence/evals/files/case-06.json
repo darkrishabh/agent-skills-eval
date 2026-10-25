@@ -1,0 +1,30 @@
+{
+  "provenance": "Synthetic normalized evidence for text-only evaluation, not a live application result or exact CLI response schema.",
+  "agent_qa_version": "0.2.3",
+  "requested_scope": {
+    "test": "tests/checkout.yaml",
+    "target": "checkout-staging",
+    "revision": "checkout-change-17",
+    "requirement": "Placing one order shows a confirmation containing an order reference."
+  },
+  "run_id": "checkout-fail-17",
+  "observations": [
+    {
+      "command": "agent-qa run tests/checkout.yaml --junit-output results/checkout.xml",
+      "exit": 1
+    }
+  ],
+  "completed_run": {
+    "test": "tests/checkout.yaml",
+    "target": "checkout-staging",
+    "revision": "checkout-change-17",
+    "verdict": "failed",
+    "executed_tests": 1,
+    "skipped_tests": 0,
+    "observed_outcome": "After placing one order, the confirmation page displayed no order reference.",
+    "artifact_paths": [
+      "results/checkout.xml",
+      "evidence/checkout-fail-17.png"
+    ]
+  }
+}

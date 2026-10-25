@@ -1,0 +1,31 @@
+{
+  "provenance": "Synthetic normalized evidence for text-only evaluation, not a live application result or exact CLI response schema.",
+  "agent_qa_version": "0.2.3",
+  "requested_scope": {
+    "test": "tests/checkout.yaml",
+    "target": "checkout-staging",
+    "revision": "checkout-change-17",
+    "requirement": "Placing one order shows a confirmation containing an order reference."
+  },
+  "observations": [
+    {
+      "command": "agent-qa validate tests/checkout.yaml",
+      "exit": 0,
+      "stdout": "All files valid (1 file(s) checked)"
+    },
+    {
+      "command": "agent-qa run tests/checkout.yaml --dry-run --junit-output results.xml",
+      "exit": 0,
+      "stdout": "Found 1 test(s): Checkout confirmation"
+    },
+    {
+      "command": "agent-qa runs list --verdict failed --limit 10 --json",
+      "exit": 0,
+      "stdout": "[]"
+    }
+  ],
+  "artifact_check": {
+    "results.xml": "absent"
+  },
+  "handoff_note": "The command succeeded and no failed runs were listed, so checkout is ready."
+}
