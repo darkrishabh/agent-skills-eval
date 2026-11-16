@@ -1,0 +1,30 @@
+{
+  "provenance": "Synthetic normalized evidence for text-only evaluation, not a live application result or exact CLI response schema.",
+  "agent_qa_version": "0.2.3",
+  "requested_scope": {
+    "test": "tests/checkout.yaml",
+    "target": "checkout-staging",
+    "revision": "checkout-change-17",
+    "requirement": "Placing one order shows a confirmation containing an order reference."
+  },
+  "run_id": "checkout-healed-17",
+  "observations": [
+    {
+      "command": "agent-qa run tests/checkout.yaml --junit-output results/checkout.xml",
+      "exit": 0
+    }
+  ],
+  "completed_run": {
+    "test": "tests/checkout.yaml",
+    "target": "checkout-staging",
+    "revision": "checkout-change-17",
+    "verdict": "healed",
+    "correction": "The runner adapted a stale navigation action to the current Checkout link.",
+    "assertion_changed": false,
+    "observed_outcome": "One order was placed; the confirmation displayed order reference ORDER-017.",
+    "artifact_paths": [
+      "results/checkout.xml",
+      "evidence/checkout-healed-17.png"
+    ]
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "skill_name": "agent-qa-evidence",
+  "evals": [
+    {
+      "id": "selection-only",
+      "name": "selection only",
+      "prompt": "Review the attached checkout evidence and state whether it establishes the requested application outcome.",
+      "files": [
+        "evals/files/case-01.json"
+      ],
+      "expected_output": "UNVERIFIED: validation and selection succeeded, but checkout execution and JUnit output are not established.",
+      "assertions": [
+        "The response reports UNVERIFIED rather than a passing checkout.",
+        "It distinguishes dry-run selection and an empty failed-run list from application execution.",
+        "It states that results.xml was not produced and identifies actual selected execution with completed evidence as the next check."
+      ]
+    },
+    {
+      "id": "incomplete-record",
+      "name": "incomplete record",
+      "prompt": "Review the attached observations for the selected checkout run and explain the supported result.",
+      "files": [
+        "evals/files/case-02.json"
+      ],
+      "expected_output": "UNVERIFIED: listing-fixture-run has no completed verdict or complete knowledge evidence.",
+      "assertions": [
+        "The response reports UNVERIFIED and retains the run ID listing-fixture-run.",
+        "It identifies the missing verdict and evidence-incomplete result without calling either an application pass or an observed application defect.",
+        "It calls for completed execution evidence and does not invent what memidex learned."
+      ]
+    },
+    {
+      "id": "healed-run",
+      "name": "healed run",
+      "prompt": "Review the attached checkout run and state the result and any distinction the release reviewer should retain.",
+      "files": [
+        "evals/files/case-03.json"
+      ],
+      "expected_output": "HEALED: the original confirmation assertion holds after the recorded navigation correction; this is not a clean unchanged pass.",
+      "assertions": [
+        "The response labels the run HEALED and retains checkout-healed-17.",
+        "It identifies the navigation correction and unchanged confirmation assertion, including observed order confirmation.",
+        "It does not describe the run as a clean unchanged pass or recommend weakening assertions or erasing memory."
+      ]
+    },
+    {
+      "id": "missing-required-file",
+      "name": "missing required file",
+      "prompt": "Review the attached command result and explain what it says about checkout behavior and the next action.",
+      "files": [
+        "evals/files/case-04.json"
+      ],
+      "expected_output": "UNVERIFIED: a missing required .env file prevented setup; this does not demonstrate a checkout defect.",
+      "assertions": [
+        "The response labels acceptance UNVERIFIED and identifies the missing required .env file.",
+        "It classifies the observed failure as setup rather than a proved application defect.",
+        "It proposes restoring the authorized project setup before validation/execution without inventing credentials, changing assertions, or claiming a run ID."
+      ]
+    },
+    {
+      "id": "completed-pass",
+      "name": "completed pass",
+      "prompt": "Review the attached completed run for the requested checkout scope and explain what is established.",
+      "files": [
+        "evals/files/case-05.json"
+      ],
+      "expected_output": "PASSED for the selected checkout test, target, and revision; the supplied observed confirmation supports that scoped outcome.",
+      "assertions": [
+        "The response labels the supplied scoped outcome PASSED and retains checkout-pass-17.",
+        "It grounds the result in the completed passed verdict and observed order confirmation, not exit zero alone.",
+        "It confines the claim to the selected test, target, and revision without asserting broad regression coverage or claiming to have run the application itself."
+      ]
+    },
+    {
+      "id": "completed-failure",
+      "name": "completed failure",
+      "prompt": "Review the attached completed checkout run and explain the supported outcome and follow-up.",
+      "files": [
+        "evals/files/case-06.json"
+      ],
+      "expected_output": "FAILED: the completed run observed no order reference, contradicting the required confirmation. This is an observed application failure, not merely a setup error.",
+      "assertions": [
+        "The response labels the selected outcome FAILED and retains checkout-fail-17.",
+        "It identifies the missing order reference as the observed contradiction of the independent requirement, rather than treating exit one alone as the oracle.",
+        "It preserves the failing evidence and expected assertion without inventing a repair, a passing rerun, or wider regression coverage."
+      ]
+    }
+  ]
+}
